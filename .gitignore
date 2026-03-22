@@ -1,2 +1,8 @@
 *.cmd
 backend/.env.example
+backend/.env 
+.vscode/
+.claude/
+mobile/node_modules/
+package-lock.json
+backend/node_modules/
