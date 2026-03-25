@@ -1,4 +1,5 @@
 // LoginScreen — username + PIN sign-in with inline validation.
+// PIN must be 4–6 digits (same constraint as signup).
 
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
@@ -12,18 +13,18 @@ import { useApp } from '@/store/AppContext';
 type Props = {
   onBack: () => void;
   onGoogleSignIn: () => void;
-  onForgotPassword: () => void;
+  onForgotPIN: () => void;
 };
 
 type FieldErrors = {
   username?: string;
-  password?: string;
+  pin?: string;
 };
 
-export function LoginScreen({ onBack, onGoogleSignIn, onForgotPassword }: Props) {
+export function LoginScreen({ onBack, onGoogleSignIn, onForgotPIN }: Props) {
   const { setUser } = useApp();
   const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [pin, setPin]           = useState('');
   const [loading, setLoading]   = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submitError, setSubmitError] = useState('');
@@ -33,8 +34,10 @@ export function LoginScreen({ onBack, onGoogleSignIn, onForgotPassword }: Props)
     if (!username.trim()) {
       errs.username = 'Username is required.';
     }
-    if (!password) {
-      errs.password = 'PIN is required.';
+    if (!pin) {
+      errs.pin = 'PIN is required.';
+    } else if (!/^\d{4,6}$/.test(pin)) {
+      errs.pin = 'PIN must be 4–6 digits.';
     }
     return errs;
   }
@@ -47,7 +50,7 @@ export function LoginScreen({ onBack, onGoogleSignIn, onForgotPassword }: Props)
 
     setLoading(true);
     try {
-      const result = await authService.login(username.trim().toLowerCase(), password);
+      const result = await authService.login(username.trim().toLowerCase(), pin);
       await setUser({
         id:          result.user.id,
         name:        result.user.name,
@@ -91,16 +94,16 @@ export function LoginScreen({ onBack, onGoogleSignIn, onForgotPassword }: Props)
           />
           <Input
             label="PIN"
-            value={password}
-            onChangeText={(v) => { setPassword(v); clearFieldError('password'); }}
-            placeholder="Your PIN"
+            value={pin}
+            onChangeText={(v) => { setPin(v); clearFieldError('pin'); }}
+            placeholder="4–6 digit PIN"
             secureTextEntry
             keyboardType="numeric"
-            maxLength={8}
-            error={fieldErrors.password}
+            maxLength={6}
+            error={fieldErrors.pin}
           />
 
-          <TouchableOpacity onPress={onForgotPassword} style={styles.forgotRow}>
+          <TouchableOpacity onPress={onForgotPIN} style={styles.forgotRow}>
             <Text style={styles.forgotText}>Forgot PIN?</Text>
           </TouchableOpacity>
 

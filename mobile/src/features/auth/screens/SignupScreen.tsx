@@ -1,4 +1,5 @@
-// SignupScreen — username + name + password signup with inline validation.
+// SignupScreen — username + PIN signup with email + goals selection.
+// PIN must be 4–6 digits (numeric). Goals are multi-select chips.
 
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
@@ -9,6 +10,16 @@ import { colors, fonts, fontSizes, spacing, borderRadius, shadows } from '@/them
 import { authService } from '@/services/authService';
 import { useApp } from '@/store/AppContext';
 
+// Goals from auth spec — what the user wants to track
+const GOAL_OPTIONS = [
+  { key: 'health',   label: '🌿 Health'   },
+  { key: 'fitness',  label: '💪 Fitness'  },
+  { key: 'hormones', label: '🧬 Hormones' },
+  { key: 'periods',  label: '🩸 Periods'  },
+  { key: 'skin',     label: '✨ Skin'     },
+  { key: 'hair',     label: '💇 Hair'     },
+];
+
 type Props = {
   onBack: () => void;
   onGoogleSignUp: () => void;
@@ -17,19 +28,28 @@ type Props = {
 type FieldErrors = {
   username?: string;
   name?: string;
-  password?: string;
-  confirmPass?: string;
+  pin?: string;
+  confirmPin?: string;
+  email?: string;
 };
 
 export function SignupScreen({ onBack, onGoogleSignUp }: Props) {
   const { setUser } = useApp();
   const [username, setUsername]       = useState('');
   const [name, setName]               = useState('');
-  const [password, setPassword]       = useState('');
-  const [confirmPass, setConfirmPass] = useState('');
+  const [pin, setPin]                 = useState('');
+  const [confirmPin, setConfirmPin]   = useState('');
+  const [email, setEmail]             = useState('');
+  const [goals, setGoals]             = useState<string[]>([]);
   const [loading, setLoading]         = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submitError, setSubmitError] = useState('');
+
+  function toggleGoal(key: string) {
+    setGoals((prev) =>
+      prev.includes(key) ? prev.filter((g) => g !== key) : [...prev, key]
+    );
+  }
 
   function validate(): FieldErrors {
     const errs: FieldErrors = {};
@@ -49,16 +69,18 @@ export function SignupScreen({ onBack, onGoogleSignUp }: Props) {
       errs.name = 'Name must be at least 2 characters.';
     }
 
-    if (password.length < 8) {
-      errs.password = 'Password must be at least 8 characters.';
-    } else if (password.length > 64) {
-      errs.password = 'Password cannot exceed 64 characters.';
+    if (!/^\d{4,6}$/.test(pin)) {
+      errs.pin = 'PIN must be 4–6 digits.';
     }
 
-    if (!confirmPass) {
-      errs.confirmPass = 'Please confirm your password.';
-    } else if (password !== confirmPass) {
-      errs.confirmPass = 'Passwords do not match.';
+    if (!confirmPin) {
+      errs.confirmPin = 'Please confirm your PIN.';
+    } else if (pin !== confirmPin) {
+      errs.confirmPin = 'PINs do not match.';
+    }
+
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      errs.email = 'Please enter a valid email address.';
     }
 
     return errs;
@@ -75,7 +97,9 @@ export function SignupScreen({ onBack, onGoogleSignUp }: Props) {
       const result = await authService.register({
         username: username.trim().toLowerCase(),
         name: name.trim(),
-        password,
+        pin,
+        email: email.trim() || undefined,
+        goals,
       });
       await setUser({
         id:          result.user.id,
@@ -109,7 +133,7 @@ export function SignupScreen({ onBack, onGoogleSignUp }: Props) {
         <View style={styles.card}>
           <Text style={styles.title}>Create Account</Text>
           <Text style={styles.sub}>
-            Choose a unique username and set a password to get started.
+            Pick a username, set a PIN, and choose what you want to track.
           </Text>
 
           <Input
@@ -129,23 +153,50 @@ export function SignupScreen({ onBack, onGoogleSignUp }: Props) {
             error={fieldErrors.name}
           />
           <Input
-            label="Password"
-            value={password}
-            onChangeText={(v) => { setPassword(v); clearFieldError('password'); }}
-            placeholder="At least 8 characters"
+            label="PIN (4–6 digits)"
+            value={pin}
+            onChangeText={(v) => { setPin(v); clearFieldError('pin'); }}
+            placeholder="e.g. 1234"
             secureTextEntry
-            maxLength={64}
-            error={fieldErrors.password}
+            keyboardType="numeric"
+            maxLength={6}
+            error={fieldErrors.pin}
           />
           <Input
-            label="Confirm Password"
-            value={confirmPass}
-            onChangeText={(v) => { setConfirmPass(v); clearFieldError('confirmPass'); }}
-            placeholder="Repeat password"
+            label="Confirm PIN"
+            value={confirmPin}
+            onChangeText={(v) => { setConfirmPin(v); clearFieldError('confirmPin'); }}
+            placeholder="Repeat PIN"
             secureTextEntry
-            maxLength={64}
-            error={fieldErrors.confirmPass}
+            keyboardType="numeric"
+            maxLength={6}
+            error={fieldErrors.confirmPin}
           />
+          <Input
+            label="Email (optional — for PIN recovery)"
+            value={email}
+            onChangeText={(v) => { setEmail(v); clearFieldError('email'); }}
+            placeholder="you@example.com"
+            keyboardType="email-address"
+            error={fieldErrors.email}
+          />
+
+          {/* Goals multi-select */}
+          <Text style={styles.goalsLabel}>What do you want to track?</Text>
+          <View style={styles.chipRow}>
+            {GOAL_OPTIONS.map(({ key, label }) => (
+              <TouchableOpacity
+                key={key}
+                style={[styles.chip, goals.includes(key) && styles.chipActive]}
+                onPress={() => toggleGoal(key)}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.chipText, goals.includes(key) && styles.chipTextActive]}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
           <Button
             label="Create Account"
@@ -207,6 +258,43 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 20,
     marginBottom: spacing.xl,
+  },
+  goalsLabel: {
+    fontFamily: fonts.sans,
+    fontSize: fontSizes.sm,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.xl,
+  },
+  chip: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.base,
+    borderRadius: borderRadius.full,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: 'transparent',
+  },
+  chipActive: {
+    borderColor: colors.deepPurple,
+    backgroundColor: colors.deepPurple,
+  },
+  chipText: {
+    fontFamily: fonts.sans,
+    fontSize: fontSizes.sm,
+    color: colors.textPrimary,
+  },
+  chipTextActive: {
+    color: colors.white,
+    fontWeight: '600',
   },
   submitError: {
     fontFamily: fonts.sans,

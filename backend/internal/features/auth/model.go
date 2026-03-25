@@ -1,31 +1,55 @@
 package auth
 
-import "github.com/google/uuid"
+import (
+	"regexp"
+
+	"github.com/google/uuid"
+)
+
+// pinRegex validates that a PIN is exactly 4–6 digits.
+var pinRegex = regexp.MustCompile(`^\d{4,6}$`)
+
+// ─── Request models ───────────────────────────────────────────────────────────
 
 // RegisterRequest — POST /auth/register
-// Username/password signup. Email is not required.
+// PIN must be 4–6 digits. Email is optional but needed for forgot-PIN flow.
+// Goals are stored in user_goals.priority_areas on signup.
 type RegisterRequest struct {
-	Username string `json:"username" binding:"required,min=3,max=30"`
-	Name     string `json:"name"     binding:"required,min=2,max=50"`
-	Password string `json:"password" binding:"required,min=8,max=64"`
+	Username string   `json:"username" binding:"required,min=3,max=30"`
+	Name     string   `json:"name"     binding:"required,min=2,max=50"`
+	Pin      string   `json:"pin"      binding:"required"`
+	Email    string   `json:"email"    binding:"omitempty,email"`
+	Goals    []string `json:"goals"`
 }
 
 // LoginRequest — POST /auth/login
 type LoginRequest struct {
 	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Pin      string `json:"pin"      binding:"required"`
 }
 
-// ForgotPasswordRequest — POST /auth/forgot-password
-type ForgotPasswordRequest struct {
-	Email string `json:"email" binding:"required,email"`
+// ForgotPINRequest — POST /auth/forgot-pin
+// Triggers OTP generation + mock email delivery.
+type ForgotPINRequest struct {
+	Username string `json:"username" binding:"required"`
 }
 
-// ResetPasswordRequest — POST /auth/reset-password
-type ResetPasswordRequest struct {
-	Token    string `json:"token"    binding:"required"`
-	Password string `json:"password" binding:"required,min=8,max=64"`
+// VerifyOTPRequest — POST /auth/verify-otp
+// Optional pre-check: client can verify OTP is valid before submitting new PIN.
+type VerifyOTPRequest struct {
+	Username string `json:"username" binding:"required"`
+	OTP      string `json:"otp"      binding:"required"`
 }
+
+// ResetPINRequest — POST /auth/reset-pin
+// Verifies OTP + sets new PIN in one step.
+type ResetPINRequest struct {
+	Username string `json:"username" binding:"required"`
+	OTP      string `json:"otp"      binding:"required"`
+	NewPIN   string `json:"new_pin"  binding:"required"`
+}
+
+// ─── Response models ──────────────────────────────────────────────────────────
 
 // AuthResponse is returned by register and login.
 type AuthResponse struct {
@@ -42,8 +66,14 @@ type UserInfo struct {
 	Onboarded bool      `json:"onboarded"`
 }
 
-// ForgotPasswordResponse — message + optional reset token (dev mode only).
-type ForgotPasswordResponse struct {
-	Message    string `json:"message"`
-	ResetToken string `json:"reset_token,omitempty"`
+// ForgotPINResponse — message + optional OTP (dev mode only).
+type ForgotPINResponse struct {
+	Message string `json:"message"`
+	OTP     string `json:"otp,omitempty"` // only returned when isDev=true
+}
+
+// VerifyOTPResponse
+type VerifyOTPResponse struct {
+	Verified bool   `json:"verified"`
+	Message  string `json:"message"`
 }

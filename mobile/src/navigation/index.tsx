@@ -1,15 +1,20 @@
 // Navigation — wires everything together.
 //
+// FLOW:
+//   No user       → Splash → Auth (Welcome → Login | Signup | ForgotPIN)
+//   User, not onboarded → Onboarding (health data setup)
+//   User, onboarded     → App (Drawer + Bottom Tabs)
+//
 // REACT NATIVE LESSON:
 //   React Navigation uses a "navigator" tree. We nest them:
-//   Root Stack → decides Splash vs Onboarding vs Main App
+//   Root Stack → decides Splash vs Auth vs Onboarding vs Main App
 //   Main App → Drawer (hamburger) wrapping Bottom Tabs
 //   Bottom Tabs → Home, Track, Today, Profile
 //
-// The key principle: navigators are just React components.
-// You nest them like you'd nest divs.
+//   The key principle: navigators are just React components.
+//   You nest them like you'd nest divs.
 
-import React from 'react';
+import React, { useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -25,11 +30,67 @@ import { OnboardingScreen } from '@/features/onboarding/screens/OnboardingScreen
 import { HomeScreen } from '@/features/home/screens/HomeScreen';
 import { PeriodTrackerScreen } from '@/features/period/screens/PeriodTrackerScreen';
 
+// Auth screens
+import { WelcomeScreen } from '@/features/auth/screens/WelcomeScreen';
+import { LoginScreen } from '@/features/auth/screens/LoginScreen';
+import { SignupScreen } from '@/features/auth/screens/SignupScreen';
+import { ForgotPasswordScreen } from '@/features/auth/screens/ForgotPasswordScreen';
+
 // ─── Stack / Tab / Drawer navigators ─────────────────────────────────────────
 
 const RootStack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
+
+// ─── Auth Flow ────────────────────────────────────────────────────────────────
+//
+// REACT NATIVE LESSON:
+//   Auth screens use callback props instead of navigation props
+//   because they're closely coupled and don't need to be deep-linked.
+//   We manage the sub-state (which auth screen to show) locally here.
+
+type AuthView = 'welcome' | 'login' | 'signup' | 'forgot';
+
+function AuthFlowScreen() {
+  const [view, setView] = useState<AuthView>('welcome');
+
+  if (view === 'login') {
+    return (
+      <LoginScreen
+        onBack={() => setView('welcome')}
+        onGoogleSignIn={() => {/* TODO: Google SSO */}}
+        onForgotPIN={() => setView('forgot')}
+      />
+    );
+  }
+
+  if (view === 'signup') {
+    return (
+      <SignupScreen
+        onBack={() => setView('welcome')}
+        onGoogleSignUp={() => {/* TODO: Google SSO */}}
+      />
+    );
+  }
+
+  if (view === 'forgot') {
+    return (
+      <ForgotPasswordScreen
+        onBack={() => setView('login')}
+        onDone={() => setView('login')}
+      />
+    );
+  }
+
+  // default: welcome
+  return (
+    <WelcomeScreen
+      onGoogleSignIn={() => {/* TODO: Google SSO */}}
+      onPinSignIn={() => setView('login')}
+      onCreateAccount={() => setView('signup')}
+    />
+  );
+}
 
 // ─── Bottom Tab Navigator ─────────────────────────────────────────────────────
 
@@ -102,24 +163,24 @@ function DrawerNavigator() {
 export function RootNavigator() {
   const { state } = useApp();
 
-  // While checking AsyncStorage, show nothing (or a mini splash)
   if (state.isLoading) {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.background }} />
-    );
+    return <View style={{ flex: 1, backgroundColor: colors.background }} />;
   }
 
   return (
     <NavigationContainer>
       <RootStack.Navigator screenOptions={{ headerShown: false }}>
         {!state.user ? (
-          // Not logged in → Splash + Onboarding
+          // Not logged in → Splash → Auth screens
           <>
             <RootStack.Screen name="Splash" component={SplashWrapper} />
-            <RootStack.Screen name="Onboarding" component={OnboardingWrapper} />
+            <RootStack.Screen name="Auth" component={AuthFlowScreen} />
           </>
+        ) : !state.user.onboarded ? (
+          // Logged in but not yet set up health profile
+          <RootStack.Screen name="Onboarding" component={OnboardingWrapper} />
         ) : (
-          // Logged in → Main App with Drawer
+          // Fully set up → Main App
           <RootStack.Screen name="App" component={DrawerNavigator} />
         )}
       </RootStack.Navigator>
@@ -127,19 +188,19 @@ export function RootNavigator() {
   );
 }
 
-// Wrappers to thread navigation props into our screens
+// ─── Wrappers ─────────────────────────────────────────────────────────────────
+
 function SplashWrapper({ navigation }: any) {
   return (
     <SplashScreen
-      onDone={() => navigation.replace('Onboarding')}
+      onDone={() => navigation.replace('Auth')}
     />
   );
 }
 
 function OnboardingWrapper({ navigation }: any) {
   const { state } = useApp();
-  // If user somehow already exists (re-open), skip to app
-  if (state.user) {
+  if (state.user?.onboarded) {
     navigation.replace('App');
     return null;
   }
@@ -152,7 +213,6 @@ function OnboardingWrapper({ navigation }: any) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// Placeholder screens for features not yet built
 function PlaceholderScreen(title: string, subtitle: string) {
   return function () {
     return (

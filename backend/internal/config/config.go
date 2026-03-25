@@ -9,9 +9,10 @@ import (
 
 // Config holds all environment configuration for the server.
 type Config struct {
-	Port     string
-	Env      string
-	Database DatabaseConfig
+	Port      string
+	Env       string
+	JWTSecret string
+	Database  DatabaseConfig
 }
 
 type DatabaseConfig struct {
@@ -38,8 +39,9 @@ func Load() (*Config, error) {
 	_ = godotenv.Load()
 
 	cfg := &Config{
-		Port: getEnv("PORT", "8080"),
-		Env:  getEnv("ENV", "development"),
+		Port:      getEnv("PORT", "8080"),
+		Env:       getEnv("ENV", "development"),
+		JWTSecret: getEnv("JWT_SECRET", "realmos-dev-secret-change-in-prod"),
 		Database: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
 			Port:     getEnv("DB_PORT", "5432"),

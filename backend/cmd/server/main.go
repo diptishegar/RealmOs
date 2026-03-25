@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/realmos/backend/internal/config"
 	"github.com/realmos/backend/internal/database"
+	"github.com/realmos/backend/internal/features/auth"
 	"github.com/realmos/backend/internal/features/period"
 	"github.com/realmos/backend/internal/features/quotes"
 	"github.com/realmos/backend/internal/features/user"
@@ -56,13 +57,21 @@ func main() {
 	// 6. API v1 routes
 	v1 := r.Group("/api/v1")
 
-	// Wire up feature handlers
+	isDev := cfg.Env != "production"
+
+	// Auth — public routes (register, login, forgot-pin, verify-otp, reset-pin)
+	authRepo := auth.NewRepository(db.Pool)
+	auth.NewHandler(authRepo, cfg.JWTSecret, isDev).RegisterPublicRoutes(v1)
+
+	// User
 	userRepo := user.NewRepository(db.Pool)
 	user.NewHandler(userRepo).RegisterRoutes(v1)
 
+	// Quotes
 	quotesRepo := quotes.NewRepository(db.Pool)
 	quotes.NewHandler(quotesRepo).RegisterRoutes(v1)
 
+	// Period
 	periodRepo := period.NewRepository(db.Pool)
 	period.NewHandler(periodRepo).RegisterRoutes(v1)
 
@@ -75,7 +84,6 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Start in a goroutine so we can listen for shutdown signals
 	go func() {
 		log.Printf("✓ RealmOs API running on :%s", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -83,7 +91,6 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal (Ctrl+C or systemd stop)
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit

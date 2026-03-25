@@ -1,22 +1,23 @@
 // AppContext is our global state store.
 // Think of it like a tiny Redux — but using React's built-in Context + useReducer.
-// We keep it simple: just user info and whether onboarding is done.
 
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type AppUser = {
+export type AppUser = {
   id: string;
   name: string;
+  username: string;
   onboarded: boolean;
+  token?: string;       // JWT — used for Authorization header
+  tokenExpiry?: number; // unix timestamp
 };
 
 type AppState = {
   user: AppUser | null;
-  isLoading: boolean;        // true while we're checking AsyncStorage on startup
-  isOnboarded: boolean;
+  isLoading: boolean; // true while checking AsyncStorage on startup
 };
 
 type AppAction =
@@ -30,13 +31,13 @@ type AppAction =
 function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case 'SET_USER':
-      return { ...state, user: action.payload, isOnboarded: action.payload.onboarded };
+      return { ...state, user: action.payload };
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };
     case 'MARK_ONBOARDED':
-      return { ...state, isOnboarded: true, user: state.user ? { ...state.user, onboarded: true } : null };
+      return { ...state, user: state.user ? { ...state.user, onboarded: true } : null };
     case 'CLEAR_USER':
-      return { ...state, user: null, isOnboarded: false };
+      return { ...state, user: null };
     default:
       return state;
   }
@@ -59,10 +60,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, {
     user: null,
     isLoading: true,
-    isOnboarded: false,
   });
 
-  // On app start: try to restore the user from AsyncStorage
+  // On app start: restore user from AsyncStorage
   useEffect(() => {
     (async () => {
       try {
@@ -72,7 +72,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           dispatch({ type: 'SET_USER', payload: user });
         }
       } catch {
-        // Ignore — user will go through onboarding
+        // Ignore — user goes through auth
       } finally {
         dispatch({ type: 'SET_LOADING', payload: false });
       }
@@ -82,12 +82,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setUser = async (user: AppUser) => {
     await AsyncStorage.setItem('app_user', JSON.stringify(user));
     await AsyncStorage.setItem('user_id', user.id);
+    if (user.token) {
+      await AsyncStorage.setItem('auth_token', user.token);
+    }
     dispatch({ type: 'SET_USER', payload: user });
   };
 
   const clearUser = async () => {
-    await AsyncStorage.removeItem('app_user');
-    await AsyncStorage.removeItem('user_id');
+    await AsyncStorage.multiRemove(['app_user', 'user_id', 'auth_token']);
     dispatch({ type: 'CLEAR_USER' });
   };
 

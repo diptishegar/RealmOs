@@ -22,6 +22,8 @@ import { userService } from '@/services/userService';
 import { periodService } from '@/services/periodService';
 import { useApp } from '@/store/AppContext';
 
+// NOTE: User is already created via auth signup — onboarding just fills in health data.
+
 // Each step's data lives in one flat state object for simplicity
 type OnboardingData = {
   // Step 1 – Basic Info
@@ -53,11 +55,11 @@ const PERIOD_VIBES: { key: 'yes' | 'no' | 'frenemy'; label: string; emoji: strin
 ];
 
 export function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
-  const { setUser } = useApp();
+  const { state, setUser } = useApp();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<OnboardingData>({
-    name: '', age: '', height: '', weight: '',
+    name: state.user?.name ?? '', age: '', height: '', weight: '',
     relationshipWithPeriod: null,
     avgCycleLength: '28', avgPeriodDuration: '5', lastPeriodStart: '',
     avgSleepHours: '8', workoutDaysWeek: '4', dailyWaterLitres: '3',
@@ -78,18 +80,23 @@ export function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
   }
 
   async function handleFinish() {
+    if (!state.user) {
+      Alert.alert('Oops!', 'Please sign in first.');
+      return;
+    }
     setLoading(true);
     try {
-      // 1. Create user
-      const user = await userService.create({
-        name: data.name,
+      const userId = state.user.id;
+
+      // 1. Update existing user's physical stats (user was created during signup)
+      await userService.update(userId, {
         age: data.age ? parseInt(data.age) : undefined,
         height_cm: data.height ? parseFloat(data.height) : undefined,
         weight_kg: data.weight ? parseFloat(data.weight) : undefined,
       });
 
-      // 2. Save user goals
-      await userService.updateGoals(user.id, {
+      // 2. Save user goals (merge with any goals set during signup)
+      await userService.updateGoals(userId, {
         sleep_hours: parseFloat(data.avgSleepHours) || 8,
         workout_days_week: parseInt(data.workoutDaysWeek) || 4,
         daily_water_ml: Math.round((parseFloat(data.dailyWaterLitres) || 3) * 1000),
@@ -104,8 +111,8 @@ export function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
         relationship_with_period: data.relationshipWithPeriod || 'neutral',
       });
 
-      // 4. Persist user locally + transition to main app
-      await setUser({ id: user.id, name: user.name, onboarded: true });
+      // 4. Mark onboarded locally + transition to main app
+      await setUser({ ...state.user, onboarded: true });
       onComplete();
     } catch (err: any) {
       Alert.alert('Oops!', err.message || 'Something broke. The universe says try again.');

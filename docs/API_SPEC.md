@@ -17,8 +17,109 @@ http://<EC2_IP>:8080/api/v1
 ## Headers
 ```
 Content-Type: application/json
-X-User-ID: <user_uuid>          ← Phase 1 auth (no JWT yet)
+X-User-ID: <user_uuid>          ← sent on all authenticated requests
+Authorization: Bearer <jwt>     ← JWT from login/register response
 ```
+
+---
+
+## Authentication & User Management
+
+### Auth Flow Overview
+
+```
+Register:  POST /auth/register  →  JWT + user info
+Login:     POST /auth/login     →  JWT + user info
+Forgot PIN:
+  1. POST /auth/forgot-pin      →  OTP generated (dev: returned in body)
+  2. POST /auth/verify-otp      →  check OTP validity (optional)
+  3. POST /auth/reset-pin       →  OTP + new PIN → success
+```
+
+### Endpoints
+
+| Method | Path                 | Description                            |
+|--------|----------------------|----------------------------------------|
+| POST   | /auth/register       | Create account (username + PIN + goals) |
+| POST   | /auth/login          | Sign in (username + PIN)               |
+| POST   | /auth/forgot-pin     | Request OTP for PIN reset              |
+| POST   | /auth/verify-otp     | Verify OTP is valid (optional pre-check) |
+| POST   | /auth/reset-pin      | Reset PIN using OTP                    |
+
+### POST /auth/register
+```json
+// Request
+{
+  "username": "dipti_queen",
+  "name": "Dipti",
+  "pin": "1234",
+  "email": "dipti@example.com",   // optional — needed for PIN recovery
+  "goals": ["health", "periods", "skin"]  // optional multi-select
+}
+
+// Response 201
+{
+  "success": true,
+  "data": {
+    "token": "eyJ...",
+    "token_expiry": 1738000000,
+    "user": {
+      "id": "uuid",
+      "name": "Dipti",
+      "username": "dipti_queen",
+      "onboarded": false
+    }
+  }
+}
+```
+
+### POST /auth/login
+```json
+// Request
+{ "username": "dipti_queen", "pin": "1234" }
+
+// Response 200 — same shape as register
+// Response 401 — { "success": false, "error": "incorrect username or PIN" }
+// Response 429 — { "success": false, "error": "too many failed attempts..." }
+```
+
+### POST /auth/forgot-pin
+```json
+// Request
+{ "username": "dipti_queen" }
+
+// Response 200
+{ "message": "If that username is registered, an OTP has been sent.",
+  "otp": "123456"  // only in dev mode (ENV != production)
+}
+```
+
+### POST /auth/verify-otp
+```json
+// Request
+{ "username": "dipti_queen", "otp": "123456" }
+
+// Response 200
+{ "verified": true, "message": "OTP verified" }
+// Response 400 — invalid/expired OTP
+// Response 429 — too many attempts
+```
+
+### POST /auth/reset-pin
+```json
+// Request
+{ "username": "dipti_queen", "otp": "123456", "new_pin": "9999" }
+
+// Response 200
+{ "message": "PIN reset successfully. Please log in." }
+```
+
+### Security notes
+- PIN stored as bcrypt hash (cost 10) — never stored in plaintext
+- 5 failed login attempts → 15-minute lockout per username (in-memory)
+- OTP is 6 digits, expires in 10 minutes, max 3 verify attempts
+- OTP stored as SHA-256 hash in memory — never stored plaintext
+- JWT uses HS256, 90-day TTL (personal app — convenience over strict rotation)
 
 ---
 

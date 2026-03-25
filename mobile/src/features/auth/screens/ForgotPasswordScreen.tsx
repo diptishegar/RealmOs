@@ -1,5 +1,9 @@
-// ForgotPasswordScreen — two-step: request reset token, then set new password.
-// Dev mode: reset token is returned in the API response (shown in UI).
+// ForgotPasswordScreen — OTP-based PIN reset.
+//
+// Flow:
+//   Step 1 (request): Enter username → backend generates OTP → (dev: shown on screen)
+//   Step 2 (verify):  Enter 6-digit OTP + new PIN + confirm
+//   Step 3 (done):    Success message → navigate to Login
 
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
@@ -11,63 +15,70 @@ import { authService } from '@/services/authService';
 
 type Props = {
   onBack: () => void;
-  onDone: () => void;  // navigate back to login after success
+  onDone: () => void; // navigate back to login after success
 };
 
 type Step = 'request' | 'reset';
 
 export function ForgotPasswordScreen({ onBack, onDone }: Props) {
-  const [step, setStep]           = useState<Step>('request');
-  const [email, setEmail]         = useState('');
-  const [token, setToken]         = useState('');
-  const [devToken, setDevToken]   = useState('');  // only set in dev builds
-  const [password, setPassword]   = useState('');
-  const [confirmPass, setConfirmPass] = useState('');
-  const [loading, setLoading]     = useState(false);
+  const [step, setStep]             = useState<Step>('request');
+  const [username, setUsername]     = useState('');
+  const [otp, setOtp]               = useState('');
+  const [devOtp, setDevOtp]         = useState(''); // only set in dev builds
+  const [newPin, setNewPin]         = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [loading, setLoading]       = useState(false);
+
+  // ─── Step 1: Request OTP ──────────────────────────────────────────────────
 
   async function handleRequest() {
-    if (!email.trim()) {
-      Alert.alert('Missing email', 'Please enter your email address.');
+    if (!username.trim()) {
+      Alert.alert('Missing username', 'Please enter your username.');
       return;
     }
     setLoading(true);
     try {
-      const res = await authService.forgotPassword(email.trim().toLowerCase());
-      if (res.reset_token) {
-        // Dev mode — token returned in response
-        setDevToken(res.reset_token);
-        setToken(res.reset_token);
+      const res = await authService.forgotPIN(username.trim().toLowerCase());
+      if (res.otp) {
+        // Dev mode — OTP returned in response body
+        setDevOtp(res.otp);
+        setOtp(res.otp);
       }
       setStep('reset');
     } catch {
-      // Always move to reset step — backend never reveals if email exists
+      // Always move to step 2 — never reveal if username exists
       setStep('reset');
     } finally {
       setLoading(false);
     }
   }
 
+  // ─── Step 2: Verify OTP + Set New PIN ────────────────────────────────────
+
   async function handleReset() {
-    if (!token.trim()) {
-      Alert.alert('Missing token', 'Enter the reset token from your email.');
+    if (!otp.trim() || !/^\d{6}$/.test(otp.trim())) {
+      Alert.alert('Invalid OTP', 'Enter the 6-digit code from your message.');
       return;
     }
-    if (password.length < 8) {
-      Alert.alert('Weak password', 'Password must be at least 8 characters.');
+    if (!/^\d{4,6}$/.test(newPin)) {
+      Alert.alert('Invalid PIN', 'New PIN must be 4–6 digits.');
       return;
     }
-    if (password !== confirmPass) {
-      Alert.alert('Passwords do not match', 'Please make sure both passwords match.');
+    if (newPin !== confirmPin) {
+      Alert.alert('PINs do not match', 'Please make sure both PINs match.');
       return;
     }
+
     setLoading(true);
     try {
-      await authService.resetPassword(token.trim(), password);
-      Alert.alert('Password updated', 'You can now log in with your new password.', [
-        { text: 'Log In', onPress: onDone },
-      ]);
+      await authService.resetPIN(username.trim().toLowerCase(), otp.trim(), newPin);
+      Alert.alert(
+        'PIN reset!',
+        'You can now log in with your new PIN.',
+        [{ text: 'Log In', onPress: onDone }],
+      );
     } catch (err: any) {
-      Alert.alert('Reset failed', err.message || 'Token may be invalid or expired.');
+      Alert.alert('Reset failed', err.message || 'OTP may be invalid or expired.');
     } finally {
       setLoading(false);
     }
@@ -77,7 +88,10 @@ export function ForgotPasswordScreen({ onBack, onDone }: Props) {
     <ScreenWrapper scrollable>
       <View style={styles.container}>
 
-        <TouchableOpacity onPress={step === 'reset' ? () => setStep('request') : onBack} style={styles.backRow}>
+        <TouchableOpacity
+          onPress={step === 'reset' ? () => setStep('request') : onBack}
+          style={styles.backRow}
+        >
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
 
@@ -85,64 +99,69 @@ export function ForgotPasswordScreen({ onBack, onDone }: Props) {
 
           {step === 'request' ? (
             <>
-              <Text style={styles.title}>Forgot Password</Text>
+              <Text style={styles.title}>Forgot PIN?</Text>
               <Text style={styles.sub}>
-                Enter your account email and we'll send you a reset link.
+                Enter your username and we'll send a one-time code to reset your PIN.
               </Text>
 
               <Input
-                label="Email"
-                value={email}
-                onChangeText={setEmail}
-                placeholder="you@example.com"
-                keyboardType="email-address"
+                label="Username"
+                value={username}
+                onChangeText={setUsername}
+                placeholder="your_username"
+                maxLength={30}
               />
 
               <Button
-                label="Send Reset Link"
+                label="Send OTP"
                 onPress={handleRequest}
                 loading={loading}
               />
             </>
           ) : (
             <>
-              <Text style={styles.title}>Reset Password</Text>
+              <Text style={styles.title}>Reset PIN</Text>
               <Text style={styles.sub}>
-                Check your email for the reset token and enter it below.
+                Enter the 6-digit code sent to you, then choose a new PIN.
               </Text>
 
-              {devToken ? (
+              {/* Dev mode: show OTP on screen for testing */}
+              {devOtp ? (
                 <View style={styles.devBanner}>
-                  <Text style={styles.devLabel}>Dev mode — reset token</Text>
-                  <Text style={styles.devToken} selectable>{devToken}</Text>
+                  <Text style={styles.devLabel}>Dev mode — one-time code</Text>
+                  <Text style={styles.devOtp} selectable>{devOtp}</Text>
                 </View>
               ) : null}
 
               <Input
-                label="Reset Token"
-                value={token}
-                onChangeText={setToken}
-                placeholder="Paste your token here"
+                label="6-digit OTP"
+                value={otp}
+                onChangeText={setOtp}
+                placeholder="e.g. 123456"
+                keyboardType="numeric"
+                maxLength={6}
               />
               <Input
-                label="New Password"
-                value={password}
-                onChangeText={setPassword}
-                placeholder="At least 8 characters"
+                label="New PIN (4–6 digits)"
+                value={newPin}
+                onChangeText={setNewPin}
+                placeholder="e.g. 9999"
                 secureTextEntry
-                maxLength={64}
+                keyboardType="numeric"
+                maxLength={6}
               />
               <Input
-                label="Confirm New Password"
-                value={confirmPass}
-                onChangeText={setConfirmPass}
-                placeholder="Repeat password"
+                label="Confirm New PIN"
+                value={confirmPin}
+                onChangeText={setConfirmPin}
+                placeholder="Repeat PIN"
                 secureTextEntry
-                maxLength={64}
+                keyboardType="numeric"
+                maxLength={6}
               />
 
               <Button
-                label="Set New Password"
+                label="Set New PIN"
                 onPress={handleReset}
                 loading={loading}
               />
@@ -190,7 +209,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: spacing.xl,
   },
-
   devBanner: {
     backgroundColor: 'rgba(54, 33, 62, 0.08)',
     borderRadius: borderRadius.md,
@@ -207,10 +225,11 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: spacing.xs,
   },
-  devToken: {
+  devOtp: {
     fontFamily: fonts.mono,
-    fontSize: fontSizes.xs,
+    fontSize: fontSizes.xl,
     color: colors.deepPurple,
-    letterSpacing: 0.5,
+    fontWeight: '700',
+    letterSpacing: 4,
   },
 });

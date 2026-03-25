@@ -17,9 +17,21 @@ export type UpdateGoalsPayload = {
   priority_areas?: string[];
 };
 
+export type UpdateUserPayload = {
+  name?: string;
+  age?: number;
+  height_cm?: number;
+  weight_kg?: number;
+};
+
 export const userService = {
   create: async (payload: CreateUserPayload) => {
     const res = await api.post('/users', payload);
+    return res.data.data;
+  },
+
+  update: async (id: string, payload: UpdateUserPayload) => {
+    const res = await api.put(`/users/${id}`, payload);
     return res.data.data;
   },
 

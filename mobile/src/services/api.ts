@@ -13,11 +13,14 @@ const api = axios.create({
   },
 });
 
-// Interceptor: automatically attach X-User-ID to every request
+// Interceptor: attach user ID + JWT token to every request
 api.interceptors.request.use(async (config) => {
-  const userId = await AsyncStorage.getItem('user_id');
-  if (userId) {
-    config.headers['X-User-ID'] = userId;
+  const [userId, token] = await AsyncStorage.multiGet(['user_id', 'auth_token']);
+  if (userId[1]) {
+    config.headers['X-User-ID'] = userId[1];
+  }
+  if (token[1]) {
+    config.headers['Authorization'] = `Bearer ${token[1]}`;
   }
   return config;
 });
