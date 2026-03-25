@@ -20,8 +20,8 @@ import { format, endOfMonth, parseISO, eachDayOfInterval } from 'date-fns';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const PERIOD_PINK = '#FF758F';
-const TODAY_GOLD  = '#D4A017';
+const PERIOD_COLOR = colors.periodMedium;
+const TODAY_GOLD   = colors.warning;
 
 type MarkedDates = Record<string, {
   selected?: boolean;
@@ -43,7 +43,7 @@ function buildMarkedDates(dates: Set<string>, today: string): MarkedDates {
 
     eachDayOfInterval({ start: parseISO(first), end: parseISO(last) }).forEach((d) => {
       const key = format(d, 'yyyy-MM-dd');
-      marked[key] = { selected: true, selectedColor: PERIOD_PINK };
+      marked[key] = { selected: true, selectedColor: PERIOD_COLOR };
     });
   }
 
@@ -82,7 +82,6 @@ export function TodayScreen() {
       setPeriodDates(dates);
       setMarkedDates(buildMarkedDates(dates, today));
     } catch {
-      // Show calendar with just today marked on error
       setMarkedDates(buildMarkedDates(new Set(), today));
     } finally {
       setLoading(false);
@@ -110,7 +109,7 @@ export function TodayScreen() {
 
         {loading ? (
           <ActivityIndicator
-            color={colors.deepPurple}
+            color={colors.accentBlue}
             size="large"
             style={styles.loader}
           />
@@ -131,7 +130,7 @@ export function TodayScreen() {
         <View style={styles.legend}>
           <View style={[styles.legendDot, { backgroundColor: TODAY_GOLD }]} />
           <Text style={styles.legendLabel}>Today</Text>
-          <View style={[styles.legendDot, { backgroundColor: PERIOD_PINK, marginLeft: spacing.base }]} />
+          <View style={[styles.legendDot, { backgroundColor: PERIOD_COLOR, marginLeft: spacing.base }]} />
           <Text style={styles.legendLabel}>Period days</Text>
         </View>
       </View>
@@ -148,15 +147,14 @@ const calendarTheme = {
   textSectionTitleColor:      colors.textMuted,
   dayTextColor:               colors.textPrimary,
 
-  // Today — golden and one size larger
   todayTextColor:             TODAY_GOLD,
-  todayBackgroundColor:       TODAY_GOLD,   // overridden by markedDates selectedColor
+  todayBackgroundColor:       TODAY_GOLD,
 
-  selectedDayBackgroundColor: PERIOD_PINK,
+  selectedDayBackgroundColor: PERIOD_COLOR,
   selectedDayTextColor:       '#FFFFFF',
   textDisabledColor:          colors.textMuted,
-  dotColor:                   colors.deepPurple,
-  arrowColor:                 colors.deepPurple,
+  dotColor:                   colors.accentBlue,
+  arrowColor:                 colors.accentBlue,
   monthTextColor:             colors.textPrimary,
 
   textDayFontFamily:          fonts.sans,
@@ -167,12 +165,11 @@ const calendarTheme = {
   textMonthFontSize:          15,
   textDayHeaderFontSize:      11,
 
-  // Today's day number — one font size larger (13 → 15)
-  textDayStyle:               {},          // base
-  todayTextFontSize:          15,          // larger for today
+  textDayStyle:               {},
+  todayTextFontSize:          15,
 
   'stylesheet.calendar.header': {
-    header: { display: 'none' },           // we show our own header
+    header: { display: 'none' },
   },
   'stylesheet.day.basic': {
     today: {
@@ -182,7 +179,7 @@ const calendarTheme = {
     todayText: {
       color:      '#FFFFFF',
       fontWeight: '700',
-      fontSize:   15,                      // one step up from 13
+      fontSize:   15,
     },
   },
 };
@@ -199,7 +196,7 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   dateLabel: {
-    fontFamily:    fonts.mono,
+    fontFamily:    fonts.sans,
     fontSize:      fontSizes.xs,
     color:         colors.textMuted,
     textTransform: 'uppercase',
@@ -207,7 +204,7 @@ const styles = StyleSheet.create({
     marginBottom:  spacing.sm,
   },
   greeting: {
-    fontFamily:   fonts.mono,
+    fontFamily:   fonts.serif,
     fontSize:     fontSizes['2xl'],
     color:        colors.textPrimary,
     fontWeight:   '700',

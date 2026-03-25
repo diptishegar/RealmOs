@@ -1,4 +1,4 @@
-// HomeScreen — daily overview with quote, quick stats, and greeting.
+// HomeScreen — daily overview with quick stats and greeting.
 
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
@@ -59,15 +59,15 @@ const styles = StyleSheet.create({
     paddingBottom: spacing['2xl'],
   },
   date: {
-    fontFamily: fonts.mono,
-    fontSize: fontSizes.sm,
+    fontFamily: fonts.sans,
+    fontSize: fontSizes.xs,
     color: colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 2,
     marginBottom: spacing.xs,
   },
   greeting: {
-    fontFamily: fonts.mono,
+    fontFamily: fonts.serif,
     fontSize: fontSizes['2xl'],
     color: colors.textPrimary,
   },
@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
   },
   cardEmoji: { fontSize: 28, marginBottom: spacing.xs },
   cardLabel: {
-    fontFamily: fonts.mono,
+    fontFamily: fonts.sans,
     fontSize: fontSizes.xs,
     color: colors.textMuted,
     textTransform: 'uppercase',
@@ -103,21 +103,21 @@ const styles = StyleSheet.create({
   cardValue: {
     fontFamily: fonts.mono,
     fontSize: fontSizes.lg,
-    color: colors.crystalBlue,
+    color: colors.accentBlue,
     fontWeight: '700',
   },
   cardSublabel: {
-    fontFamily: fonts.mono,
+    fontFamily: fonts.sans,
     fontSize: fontSizes.xs,
     color: colors.textMuted,
     marginTop: 2,
   },
   sectionTitle: {
-    fontFamily: fonts.mono,
+    fontFamily: fonts.sans,
     fontSize: fontSizes.base,
     color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
+    fontWeight: '600',
+    letterSpacing: 0.5,
     marginBottom: spacing.base,
   },
   emptyState: {
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   },
   emptyEmoji: { fontSize: 40, marginBottom: spacing.base },
   emptyText: {
-    fontFamily: fonts.mono,
+    fontFamily: fonts.sans,
     fontSize: fontSizes.base,
     color: colors.textMuted,
   },

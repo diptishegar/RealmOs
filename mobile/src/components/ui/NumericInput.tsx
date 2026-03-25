@@ -1,4 +1,4 @@
-// NumericInput — white input with range validation, inside dark cards.
+// NumericInput — input with range validation.
 
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
@@ -84,9 +84,8 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontFamily: fonts.sans,
     fontSize: fontSizes.sm,
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-    fontWeight: '600',
+    fontWeight: '500',
+    letterSpacing: 0.3,
   },
   hint: {
     color: colors.textMuted,
@@ -95,7 +94,7 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: colors.inputBg,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: colors.inputBorder,
     borderRadius: borderRadius.md,
     color: colors.inputText,
@@ -103,7 +102,7 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.base,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
-    minHeight: 52,
+    minHeight: 50,
   },
   focused: {
     borderColor: colors.inputFocusBorder,

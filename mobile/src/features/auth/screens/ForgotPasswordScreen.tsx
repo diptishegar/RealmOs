@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
   backText: {
     fontFamily: fonts.sans,
     fontSize: fontSizes.sm,
-    color: colors.deepPurple,
+    color: colors.accentBlue,
     fontWeight: '600',
   },
   card: {
@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   title: {
-    fontFamily: fonts.sans,
+    fontFamily: fonts.serif,
     fontSize: fontSizes.xl,
     fontWeight: '700',
     color: colors.textPrimary,
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   devBanner: {
-    backgroundColor: 'rgba(54, 33, 62, 0.08)',
+    backgroundColor: 'rgba(80, 125, 188, 0.08)',
     borderRadius: borderRadius.md,
     borderWidth: 1,
     borderColor: colors.border,
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
   devOtp: {
     fontFamily: fonts.mono,
     fontSize: fontSizes.xl,
-    color: colors.deepPurple,
+    color: colors.accentBlue,
     fontWeight: '700',
     letterSpacing: 4,
   },

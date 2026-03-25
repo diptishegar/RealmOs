@@ -69,6 +69,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius:    borderRadius.xl,
     padding:         spacing.xl,
+    marginTop:       spacing.base,
     marginBottom:    spacing.md,
     alignItems:      'center',
     ...shadows.card,
@@ -78,10 +79,12 @@ const styles = StyleSheet.create({
     width:           72,
     height:          72,
     borderRadius:    36,
-    backgroundColor: colors.deepPurple,
+    backgroundColor: colors.accentBlue,
     alignItems:      'center',
     justifyContent:  'center',
     marginBottom:    spacing.base,
+    borderWidth:     3,
+    borderColor:     colors.softBlue,
   },
   avatarText: {
     fontFamily: fonts.sans,
@@ -91,7 +94,7 @@ const styles = StyleSheet.create({
   },
 
   name: {
-    fontFamily:   fonts.sans,
+    fontFamily:   fonts.serif,
     fontSize:     fontSizes.lg,
     fontWeight:   '700',
     color:        colors.textPrimary,
@@ -121,8 +124,8 @@ const styles = StyleSheet.create({
 
   // Logout button — red outline at rest, solid red on press
   logoutBtn: {
-    borderWidth:     1.5,
-    borderColor:     '#C0392B',
+    borderWidth:     1,
+    borderColor:     colors.error,
     borderRadius:    borderRadius.full,
     paddingVertical: spacing.md,
     alignItems:      'center',
@@ -131,13 +134,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   logoutBtnActive: {
-    backgroundColor: '#C0392B',
+    backgroundColor: colors.error,
   },
   logoutText: {
     fontFamily:    fonts.sans,
     fontSize:      fontSizes.base,
     fontWeight:    '600',
-    color:         '#C0392B',
+    color:         colors.error,
     letterSpacing: 0.3,
   },
   logoutTextActive: {

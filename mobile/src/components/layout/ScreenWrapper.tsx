@@ -1,5 +1,5 @@
 // ScreenWrapper: every screen gets this shell.
-// Handles safe area, background color, and optional scroll.
+// Alabaster background, safe area, optional scroll.
 
 import React, { ReactNode } from 'react';
 import {
@@ -17,13 +17,17 @@ type ScreenWrapperProps = {
   children: ReactNode;
   scrollable?: boolean;
   padded?: boolean;
+  dark?: boolean; // for splash/auth screens that need dark background
 };
 
 export function ScreenWrapper({
   children,
   scrollable = false,
   padded = true,
+  dark = false,
 }: ScreenWrapperProps) {
+  const bg = dark ? colors.royalDark : colors.background;
+
   const content = scrollable ? (
     <ScrollView
       contentContainerStyle={padded ? styles.scrollContent : undefined}
@@ -37,10 +41,10 @@ export function ScreenWrapper({
   );
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: bg }]}>
       <StatusBar
-        barStyle="light-content"
-        backgroundColor={colors.background}
+        barStyle={dark ? 'light-content' : 'dark-content'}
+        backgroundColor={bg}
       />
       <KeyboardAvoidingView
         style={styles.keyboard}
@@ -55,7 +59,6 @@ export function ScreenWrapper({
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   keyboard: {
     flex: 1,
@@ -64,10 +67,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   padded: {
-    paddingHorizontal: spacing.base,
+    paddingHorizontal: spacing.lg,
   },
   scrollContent: {
-    paddingHorizontal: spacing.base,
+    flexGrow: 1,
+    paddingHorizontal: spacing.lg,
     paddingBottom: spacing['3xl'],
   },
 });

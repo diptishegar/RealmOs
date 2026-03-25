@@ -49,7 +49,7 @@ const TOTAL_STEPS = 4;
 const PRIORITY_OPTIONS = ['health', 'fitness', 'diet', 'hormones', 'finances'];
 
 const PERIOD_VIBES: { key: 'yes' | 'no' | 'frenemy'; label: string; emoji: string }[] = [
-  { key: 'yes', label: 'We're besties', emoji: '💕' },
+  { key: 'yes', label: 'We\'re besties', emoji: '💕' },
   { key: 'frenemy', label: 'Frenemy situation', emoji: '😤' },
   { key: 'no', label: 'Hard no', emoji: '😭' },
 ];
@@ -286,10 +286,10 @@ const styles = StyleSheet.create({
   progressDot: {
     width: 8, height: 8,
     borderRadius: 4,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.borderLight,
   },
   progressDotActive: {
-    backgroundColor: colors.crystalBlue,
+    backgroundColor: colors.accentBlue,
     width: 24,
   },
   step: {
@@ -302,7 +302,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.base,
   },
   stepTitle: {
-    fontFamily: fonts.mono,
+    fontFamily: fonts.serif,
     fontSize: fontSizes.xl,
     color: colors.textPrimary,
     textAlign: 'center',
@@ -316,11 +316,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing['2xl'],
   },
   fieldLabel: {
-    fontFamily: fonts.mono,
+    fontFamily: fonts.sans,
     fontSize: fontSizes.sm,
     color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    fontWeight: '500',
+    letterSpacing: 0.3,
     marginBottom: spacing.sm,
   },
   chipRow: {
@@ -333,16 +333,16 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.base,
     borderRadius: borderRadius.full,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: 'transparent',
   },
   chipActive: {
-    borderColor: colors.crystalBlue,
-    backgroundColor: colors.surface,
+    borderColor: colors.accentBlue,
+    backgroundColor: colors.surfaceAlt,
   },
   chipText: {
-    fontFamily: fonts.mono,
+    fontFamily: fonts.sans,
     fontSize: fontSizes.sm,
     color: colors.textPrimary,
     textTransform: 'lowercase',

@@ -1,4 +1,4 @@
-// DatePickerInput — tappable field inside dark cards, opens a calendar modal.
+// DatePickerInput — tappable field that opens a calendar modal.
 
 import React, { useState } from 'react';
 import {
@@ -41,7 +41,7 @@ export function DatePickerInput({
   }
 
   const markedDates = value
-    ? { [value]: { selected: true, selectedColor: colors.crystalBlue } }
+    ? { [value]: { selected: true, selectedColor: colors.accentBlue } }
     : {};
 
   return (
@@ -87,19 +87,19 @@ const calendarTheme = {
   backgroundColor:            colors.surfaceAlt,
   calendarBackground:         colors.surfaceAlt,
   textSectionTitleColor:      colors.textMuted,
-  selectedDayBackgroundColor: colors.crystalBlue,
-  selectedDayTextColor:       colors.deepPurple,
-  todayTextColor:             colors.crystalBlue,
+  selectedDayBackgroundColor: colors.accentBlue,
+  selectedDayTextColor:       colors.white,
+  todayTextColor:             colors.accentBlue,
   todayBackgroundColor:       'transparent',
   dayTextColor:               colors.textPrimary,
   textDisabledColor:          colors.textMuted,
   dotColor:                   colors.accent,
-  selectedDotColor:           colors.deepPurple,
-  arrowColor:                 colors.crystalBlue,
+  selectedDotColor:           colors.white,
+  arrowColor:                 colors.accentBlue,
   monthTextColor:             colors.textPrimary,
-  textMonthFontFamily:        fonts.mono,
-  textDayFontFamily:          fonts.mono,
-  textDayHeaderFontFamily:    fonts.mono,
+  textMonthFontFamily:        fonts.sans,
+  textDayFontFamily:          fonts.sans,
+  textDayHeaderFontFamily:    fonts.sans,
   textMonthFontSize:          15,
   textDayFontSize:            13,
   textDayHeaderFontSize:      11,
@@ -111,30 +111,29 @@ const styles = StyleSheet.create({
   },
   label: {
     color:         colors.textSecondary,
-    fontFamily:    fonts.mono,
+    fontFamily:    fonts.sans,
     fontSize:      fontSizes.sm,
-    marginBottom:  spacing.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
-    fontWeight:    '600',
+    marginBottom:  spacing.xs + 2,
+    fontWeight:    '500',
+    letterSpacing: 0.3,
   },
   field: {
     flexDirection:     'row',
     alignItems:        'center',
     justifyContent:    'space-between',
     backgroundColor:   colors.inputBg,
-    borderWidth:       1.5,
+    borderWidth:       1,
     borderColor:       colors.inputBorder,
     borderRadius:      borderRadius.md,
     paddingHorizontal: spacing.base,
     paddingVertical:   spacing.md,
-    minHeight:         52,
+    minHeight:         50,
   },
   fieldFocused: {
     borderColor: colors.inputFocusBorder,
   },
   fieldText: {
-    fontFamily: fonts.mono,
+    fontFamily: fonts.sans,
     fontSize:   fontSizes.base,
     color:      colors.inputText,
     flex:       1,
@@ -161,12 +160,11 @@ const styles = StyleSheet.create({
     ...shadows.strong,
   },
   modalTitle: {
-    fontFamily:    fonts.mono,
+    fontFamily:    fonts.sans,
     fontSize:      fontSizes.base,
     color:         colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
     fontWeight:    '600',
+    letterSpacing: 0.3,
     marginBottom:  spacing.base,
     textAlign:     'center',
   },
@@ -178,9 +176,9 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   cancelText: {
-    fontFamily:    fonts.mono,
+    fontFamily:    fonts.sans,
     fontSize:      fontSizes.sm,
     color:         colors.textMuted,
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
 });

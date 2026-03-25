@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -23,7 +24,8 @@ func Connect(cfg *config.DatabaseConfig) (*DB, error) {
 
 	connStr := fmt.Sprintf(
 		"postgresql://%s:%s@%s:%s/%s?sslmode=%s",
-		cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Name, cfg.SSLMode,
+		url.QueryEscape(cfg.User), url.QueryEscape(cfg.Password),
+		cfg.Host, cfg.Port, cfg.Name, cfg.SSLMode,
 	)
 
 	poolConfig, err := pgxpool.ParseConfig(connStr)

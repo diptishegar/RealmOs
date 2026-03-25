@@ -22,7 +22,7 @@ import { format, endOfMonth, addMonths, subMonths, parseISO, eachDayOfInterval }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const PERIOD_PINK  = '#FF758F';
+const PERIOD_PINK  = colors.periodMedium;
 
 type MarkedDates = Record<string, {
   selected?: boolean;
@@ -59,7 +59,7 @@ function buildMarkedDates(dates: Set<string>, today: string): MarkedDates {
 
   // Today dot (only if today isn't a period day)
   if (!marked[today]) {
-    marked[today] = { marked: true, dotColor: colors.deepPurple };
+    marked[today] = { marked: true, dotColor: colors.accentBlue };
   }
 
   return marked;
@@ -232,7 +232,7 @@ export function TrackScreen() {
         {/* Calendar */}
         {loading ? (
           <ActivityIndicator
-            color={colors.deepPurple}
+            color={colors.accentBlue}
             size="large"
             style={styles.loader}
           />
@@ -253,7 +253,7 @@ export function TrackScreen() {
         <View style={styles.legend}>
           <View style={[styles.legendDot, { backgroundColor: PERIOD_PINK }]} />
           <Text style={styles.legendLabel}>Period days</Text>
-          <View style={[styles.legendDot, { backgroundColor: colors.deepPurple, marginLeft: spacing.base }]} />
+          <View style={[styles.legendDot, { backgroundColor: colors.accentBlue, marginLeft: spacing.base }]} />
           <Text style={styles.legendLabel}>Today</Text>
         </View>
 
@@ -329,13 +329,13 @@ const readOnlyCalendarTheme = {
   calendarBackground:         colors.surface,
   textSectionTitleColor:      colors.textMuted,
   dayTextColor:               colors.textPrimary,
-  todayTextColor:             colors.deepPurple,
+  todayTextColor:             colors.accentBlue,
   todayBackgroundColor:       'transparent',
   selectedDayBackgroundColor: PERIOD_PINK,
   selectedDayTextColor:       '#FFFFFF',
   textDisabledColor:          colors.textMuted,
-  dotColor:                   colors.deepPurple,
-  arrowColor:                 colors.deepPurple,
+  dotColor:                   colors.accentBlue,
+  arrowColor:                 colors.accentBlue,
   monthTextColor:             colors.textPrimary,
   textDayFontFamily:          fonts.sans,
   textMonthFontFamily:        fonts.sans,
@@ -352,15 +352,15 @@ const readOnlyCalendarTheme = {
 const editCalendarTheme = {
   backgroundColor:            '#FFFFFF',
   calendarBackground:         '#FFFFFF',
-  textSectionTitleColor:      'rgba(54, 33, 62, 0.45)',
-  dayTextColor:               colors.deepPurple,
+  textSectionTitleColor:      colors.textMuted,
+  dayTextColor:               colors.royalDark,
   todayTextColor:             PERIOD_PINK,
   selectedDayBackgroundColor: PERIOD_PINK,
   selectedDayTextColor:       '#FFFFFF',
-  textDisabledColor:          'rgba(54, 33, 62, 0.25)',
-  dotColor:                   colors.deepPurple,
-  arrowColor:                 colors.deepPurple,
-  monthTextColor:             colors.deepPurple,
+  textDisabledColor:          'rgba(4, 8, 15, 0.25)',
+  dotColor:                   colors.accentBlue,
+  arrowColor:                 colors.accentBlue,
+  monthTextColor:             colors.royalDark,
   textDayFontFamily:          fonts.sans,
   textMonthFontFamily:        fonts.sans,
   textDayHeaderFontFamily:    fonts.sans,
@@ -424,7 +424,7 @@ const styles = StyleSheet.create({
   },
   arrowText: {
     fontSize:   26,
-    color:      colors.deepPurple,
+    color:      colors.accentBlue,
     lineHeight: 30,
   },
   arrowDisabled: {
@@ -475,9 +475,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius:    borderRadius.xl,
     padding:         spacing.xl,
-    shadowColor:     colors.deepPurple,
+    shadowColor:     colors.royalDark,
     shadowOffset:    { width: 0, height: 12 },
-    shadowOpacity:   0.30,
+    shadowOpacity:   0.20,
     shadowRadius:    28,
     elevation:       16,
   },
@@ -486,13 +486,13 @@ const styles = StyleSheet.create({
     fontFamily:   fonts.sans,
     fontSize:     fontSizes.lg,
     fontWeight:   '700',
-    color:        colors.deepPurple,
+    color:        colors.royalDark,
     marginBottom: spacing.xs,
   },
   editSub: {
     fontFamily:   fonts.sans,
     fontSize:     fontSizes.sm,
-    color:        'rgba(54, 33, 62, 0.55)',
+    color:        colors.textSecondary,
     marginBottom: spacing.base,
   },
 
@@ -514,17 +514,17 @@ const styles = StyleSheet.create({
     minHeight:      48,
   },
   cancelBtn: {
-    borderWidth:  1.5,
-    borderColor:  'rgba(54, 33, 62, 0.22)',
+    borderWidth:  1,
+    borderColor:  colors.border,
   },
   cancelBtnText: {
     fontFamily:  fonts.sans,
     fontSize:    fontSizes.base,
     fontWeight:  '600',
-    color:       colors.deepPurple,
+    color:       colors.royalDark,
   },
   saveBtn: {
-    backgroundColor: colors.deepPurple,
+    backgroundColor: colors.accentBlue,
   },
   saveBtnText: {
     fontFamily:  fonts.sans,
@@ -540,14 +540,14 @@ const styles = StyleSheet.create({
   fetchError: {
     fontFamily:   fonts.sans,
     fontSize:     fontSizes.sm,
-    color:        '#B91C1C',
+    color:        colors.error,
     textAlign:    'center',
     marginBottom: spacing.sm,
   },
   saveError: {
     fontFamily:   fonts.sans,
     fontSize:     fontSizes.sm,
-    color:        '#B91C1C',
+    color:        colors.error,
     textAlign:    'center',
     marginTop:    spacing.sm,
     marginBottom: spacing.xs,

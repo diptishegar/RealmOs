@@ -1,9 +1,5 @@
-// SplashScreen — shown on every app launch.
+// SplashScreen — dramatic dark splash on every app launch.
 // Fetches a random motivational quote, displays it in cursive, then navigates.
-//
-// REACT NATIVE LESSON:
-//   Animated.Value is like a CSS transition but in JS.
-//   We fade the quote in using Animated.timing + opacity.
 
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -19,8 +15,40 @@ import { quoteService, Quote } from '@/services/quoteService';
 
 const { width, height } = Dimensions.get('window');
 
+const FALLBACK_QUOTES: Quote[] = [
+  { id: 'f1',  text: "I'd ruin the world gently, just to keep you safe.", author: null, category: 'dark' },
+  { id: 'f2',  text: "You're my favorite bad decision.", author: null, category: 'dark' },
+  { id: 'f3',  text: "I don't fix people—I keep them broken with me.", author: null, category: 'dark' },
+  { id: 'f4',  text: "If loving you is chaos, I'll burn calmly.", author: null, category: 'dark' },
+  { id: 'f5',  text: "You're the sin I'd confess twice.", author: null, category: 'dark' },
+  { id: 'f6',  text: "We don't heal—we haunt each other softer.", author: null, category: 'dark' },
+  { id: 'f7',  text: "I chose you knowing you'd destroy me beautifully.", author: null, category: 'dark' },
+  { id: 'f8',  text: "Your darkness matches mine a little too perfectly.", author: null, category: 'dark' },
+  { id: 'f9',  text: "I'd rather bleed with you than breathe without you.", author: null, category: 'dark' },
+  { id: 'f10', text: "You're not good for me—that's why I stay.", author: null, category: 'dark' },
+  { id: 'f11', text: "We were never meant to last, only to linger.", author: null, category: 'dark' },
+  { id: 'f12', text: "You don't get to leave—you're mine even when you hate it.", author: null, category: 'dark' },
+  { id: 'f13', text: "I don't share what I love. I guard it.", author: null, category: 'dark' },
+  { id: 'f14', text: "If I can't have you gently, I'll have you completely.", author: null, category: 'dark' },
+  { id: 'f15', text: "You were never an option—you were always the decision.", author: null, category: 'dark' },
+  { id: 'f16', text: "I'd rather cage your heart than watch it wander.", author: null, category: 'dark' },
+  { id: 'f17', text: "You belong to me in ways you don't understand yet.", author: null, category: 'dark' },
+  { id: 'f18', text: "Love shouldn't feel safe—and with me, it won't.", author: null, category: 'dark' },
+  { id: 'f19', text: "I don't chase. I claim.", author: null, category: 'dark' },
+  { id: 'f20', text: "Even your freedom bends back to me.", author: null, category: 'dark' },
+  { id: 'f21', text: "I'll ruin anyone who makes you forget me.", author: null, category: 'dark' },
+  { id: 'f22', text: "You're not leaving—I'd break the world before I let you go.", author: null, category: 'dark' },
+  { id: 'f23', text: "Your 'no' just sounds like a dare to me.", author: null, category: 'dark' },
+  { id: 'f24', text: "I don't need permission to keep you.", author: null, category: 'dark' },
+  { id: 'f25', text: "You're mine—even your silence answers to me.", author: null, category: 'dark' },
+];
+
+function getRandomFallback(): Quote {
+  return FALLBACK_QUOTES[Math.floor(Math.random() * FALLBACK_QUOTES.length)];
+}
+
 type Props = {
-  onDone: () => void; // called after splash finishes
+  onDone: () => void;
 };
 
 export function SplashScreen({ onDone }: Props) {
@@ -29,23 +57,16 @@ export function SplashScreen({ onDone }: Props) {
   const slideAnim = useRef(new Animated.Value(20)).current;
 
   useEffect(() => {
-    // Fetch quote from backend (falls back to static if API is down)
     quoteService.getRandom()
       .then(setQuote)
       .catch(() => {
-        setQuote({
-          id: 'fallback',
-          text: 'She remembered who she was and the game changed.',
-          author: 'Lalah Delia',
-          category: 'power',
-        });
+        setQuote(getRandomFallback());
       });
   }, []);
 
   useEffect(() => {
     if (!quote) return;
 
-    // Fade in + slide up animation
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -59,20 +80,17 @@ export function SplashScreen({ onDone }: Props) {
       }),
     ]).start();
 
-    // Auto-navigate after 3 seconds
     const timer = setTimeout(onDone, 3200);
     return () => clearTimeout(timer);
   }, [quote, fadeAnim, slideAnim, onDone]);
 
   return (
     <View style={styles.container}>
-      {/* App name */}
       <Text style={styles.appName}>RealmOs</Text>
       <Text style={styles.tagline}>your life. your data. your realm.</Text>
 
-      {/* Quote area */}
       {!quote ? (
-        <ActivityIndicator color={colors.crystalBlue} style={styles.loader} />
+        <ActivityIndicator color={colors.softBlue} style={styles.loader} />
       ) : (
         <Animated.View
           style={[
@@ -87,7 +105,6 @@ export function SplashScreen({ onDone }: Props) {
         </Animated.View>
       )}
 
-      {/* Bottom glow effect */}
       <View style={styles.bottomGlow} />
     </View>
   );
@@ -96,24 +113,25 @@ export function SplashScreen({ onDone }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.royalDark,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing['2xl'],
   },
   appName: {
-    fontFamily: fonts.mono,
+    fontFamily: fonts.serif,
     fontSize: fontSizes['3xl'],
-    color: colors.crystalBlue,
+    color: colors.softBlue,
     letterSpacing: 4,
     marginBottom: spacing.xs,
   },
   tagline: {
-    fontFamily: fonts.mono,
+    fontFamily: fonts.sans,
     fontSize: fontSizes.sm,
-    color: colors.textMuted,
+    color: colors.secondaryBg,
     letterSpacing: 2,
     marginBottom: spacing['4xl'],
+    opacity: 0.7,
   },
   loader: {
     marginTop: spacing['2xl'],
@@ -123,10 +141,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
   },
   quoteText: {
-    // Cursive font for quotes — app personality requirement
     fontFamily: fonts.cursive,
     fontSize: fontSizes.xl,
-    color: colors.textPrimary,
+    color: colors.textOnDark,
     textAlign: 'center',
     lineHeight: 36,
     marginBottom: spacing.base,
@@ -134,7 +151,7 @@ const styles = StyleSheet.create({
   quoteAuthor: {
     fontFamily: fonts.cursive,
     fontSize: fontSizes.base,
-    color: colors.textSecondary,
+    color: colors.softBlue,
     textAlign: 'center',
     fontStyle: 'italic',
   },
@@ -143,7 +160,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: width,
     height: height * 0.15,
-    backgroundColor: colors.accent,
-    opacity: 0.06,
+    backgroundColor: colors.accentBlue,
+    opacity: 0.08,
   },
 });

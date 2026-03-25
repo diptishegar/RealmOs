@@ -100,7 +100,7 @@ function TabNavigator() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: tabBarStyle,
-        tabBarActiveTintColor: colors.crystalBlue,
+        tabBarActiveTintColor: colors.accentBlue,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: tabBarLabelStyle,
       }}
@@ -137,7 +137,7 @@ function DrawerNavigator() {
       screenOptions={{
         headerShown: false,
         drawerStyle: drawerStyle,
-        drawerActiveTintColor: colors.crystalBlue,
+        drawerActiveTintColor: colors.accentBlue,
         drawerInactiveTintColor: colors.textMuted,
         drawerLabelStyle: drawerLabelStyle,
       }}
@@ -226,31 +226,39 @@ function PlaceholderScreen(title: string, subtitle: string) {
 }
 
 function TabIcon({ emoji, color }: { emoji: string; color: string }) {
-  return <Text style={{ fontSize: 20, opacity: color === colors.crystalBlue ? 1 : 0.5 }}>{emoji}</Text>;
+  return <Text style={{ fontSize: 20, opacity: color === colors.accentBlue ? 1 : 0.5 }}>{emoji}</Text>;
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const tabBarStyle = {
   backgroundColor: colors.surface,
-  borderTopColor: colors.border,
-  height: 60,
-  paddingBottom: 8,
+  borderTopColor: colors.borderLight,
+  borderTopWidth: 1,
+  height: 64,
+  paddingBottom: 10,
+  paddingTop: 6,
+  shadowColor: colors.royalDark,
+  shadowOffset: { width: 0, height: -2 },
+  shadowOpacity: 0.04,
+  shadowRadius: 8,
+  elevation: 4,
 };
 
 const tabBarLabelStyle = {
-  fontFamily: fonts.mono,
+  fontFamily: fonts.sans,
   fontSize: fontSizes.xs,
 };
 
 const drawerStyle = {
   backgroundColor: colors.background,
-  width: 260,
+  width: 270,
 };
 
 const drawerLabelStyle = {
-  fontFamily: fonts.mono,
+  fontFamily: fonts.sans,
   fontSize: fontSizes.sm,
+  letterSpacing: 0.2,
 };
 
 const placeholderStyles = StyleSheet.create({
@@ -262,7 +270,7 @@ const placeholderStyles = StyleSheet.create({
     padding: 32,
   },
   title: {
-    fontFamily: fonts.mono,
+    fontFamily: fonts.serif,
     fontSize: fontSizes.xl,
     color: colors.textPrimary,
     marginBottom: 8,
@@ -275,7 +283,7 @@ const placeholderStyles = StyleSheet.create({
     marginBottom: 16,
   },
   coming: {
-    fontFamily: fonts.mono,
+    fontFamily: fonts.sans,
     fontSize: fontSizes.sm,
     color: colors.textMuted,
   },
