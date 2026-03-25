@@ -43,7 +43,7 @@ func main() {
 	r.Use(middleware.Recovery())
 	r.Use(middleware.Logger())
 	r.Use(middleware.CORS())
-	r.Use(middleware.UserID())
+	r.Use(middleware.UserID(cfg.JWTSecret))
 
 	// 5. Health check (no auth needed)
 	r.GET("/health", func(c *gin.Context) {

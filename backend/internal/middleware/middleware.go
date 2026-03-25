@@ -2,9 +2,11 @@ package middleware
 
 import (
 	"log"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/realmos/backend/pkg/jwtutil"
 )
 
 // Logger logs each request: method, path, status, latency.
@@ -39,13 +41,25 @@ func Recovery() gin.HandlerFunc {
 	return gin.Recovery()
 }
 
-// UserID extracts the X-User-ID header and stores it in context.
-// Phase 1: no JWT, just trust the header. Phase 2: replace with JWT middleware.
-func UserID() gin.HandlerFunc {
+// UserID extracts the user ID from Authorization (JWT) or X-User-ID header.
+// If Authorization is present but invalid, it will not fall back to X-User-ID.
+func UserID(jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID := c.GetHeader("X-User-ID")
-		if userID != "" {
-			c.Set("user_id", userID)
+		authHeader := strings.TrimSpace(c.GetHeader("Authorization"))
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			token := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+			if token != "" {
+				if claims, err := jwtutil.Validate(token, jwtSecret); err == nil {
+					c.Set("user_id", claims.UserID.String())
+					c.Next()
+					return
+				}
+			}
+		} else {
+			userID := c.GetHeader("X-User-ID")
+			if userID != "" {
+				c.Set("user_id", userID)
+			}
 		}
 		c.Next()
 	}
@@ -56,7 +70,7 @@ func RequireUserID() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID, exists := c.Get("user_id")
 		if !exists || userID == "" {
-			c.JSON(401, gin.H{"success": false, "error": "X-User-ID header required"})
+			c.JSON(401, gin.H{"success": false, "error": "Authorization or X-User-ID required"})
 			c.Abort()
 			return
 		}

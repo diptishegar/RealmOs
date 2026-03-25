@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
@@ -28,6 +29,8 @@ var (
 	ErrTooManyAttempts    = errors.New("too many failed login attempts")
 	ErrInvalidOTP         = errors.New("invalid or expired OTP")
 	ErrOTPMaxAttempts     = errors.New("too many OTP verification attempts")
+	ErrInvalidRefresh     = errors.New("invalid or expired refresh token")
+	ErrUserNotFound       = errors.New("user not found")
 )
 
 // ─── Rate limiter (in-memory) ─────────────────────────────────────────────────
@@ -99,7 +102,7 @@ type otpEntry struct {
 	used      bool
 }
 
-var otpCache sync.Map // key: username (lowercase) → *otpEntry
+var otpCache sync.Map // key: userID (string) → *otpEntry
 
 func generateOTP() (string, error) {
 	n, err := rand.Int(rand.Reader, big.NewInt(1_000_000))
@@ -114,9 +117,9 @@ func hashOTP(otp string) string {
 	return hex.EncodeToString(h[:])
 }
 
-// checkOTP verifies username + OTP against the cache (does not consume it).
-func checkOTP(username, otp string) error {
-	key := strings.ToLower(username)
+// checkOTP verifies userID + OTP against the cache (does not consume it).
+func checkOTP(userID uuid.UUID, otp string) error {
+	key := userID.String()
 	v, ok := otpCache.Load(key)
 	if !ok {
 		return ErrInvalidOTP
@@ -139,6 +142,34 @@ func checkOTP(username, otp string) error {
 	return nil
 }
 
+// ─── Refresh token cache (in-memory) ──────────────────────────────────────────
+//
+// WHY: Remember-me sessions should survive access token expiry.
+// HOW: Store SHA-256 hash of refresh token with expiry in memory (Redis in prod).
+
+const refreshTokenTTL = 30 * 24 * time.Hour
+
+type refreshEntry struct {
+	userID    uuid.UUID
+	name      string
+	expiresAt time.Time
+}
+
+var refreshTokenCache sync.Map // key: hashed token → *refreshEntry
+
+func generateRefreshToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+func hashToken(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
+}
+
 // ─── Repository ───────────────────────────────────────────────────────────────
 
 type Repository struct {
@@ -147,6 +178,32 @@ type Repository struct {
 
 func NewRepository(db *pgxpool.Pool) *Repository {
 	return &Repository{db: db}
+}
+
+func normalizeIdentifier(identifier string) string {
+	return strings.ToLower(strings.TrimSpace(identifier))
+}
+
+func (r *Repository) getUserByIdentifier(ctx context.Context, identifier string) (uuid.UUID, string, error) {
+	normalized := normalizeIdentifier(identifier)
+	if normalized == "" {
+		return uuid.Nil, "", ErrUserNotFound
+	}
+
+	var userID uuid.UUID
+	var username string
+	err := r.db.QueryRow(ctx, `
+		SELECT id, username
+		FROM users
+		WHERE username = $1 OR email = $1
+	`, normalized).Scan(&userID, &username)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, "", ErrUserNotFound
+		}
+		return uuid.Nil, "", fmt.Errorf("lookup user: %w", err)
+	}
+	return userID, username, nil
 }
 
 // Register creates a new account with a bcrypt-hashed PIN.
@@ -162,13 +219,10 @@ func (r *Repository) Register(ctx context.Context, req RegisterRequest) (*UserIn
 		return nil, fmt.Errorf("hash pin: %w", err)
 	}
 
-	username := strings.ToLower(strings.TrimSpace(req.Username))
+	username := normalizeIdentifier(req.Username)
 
 	// email is optional — pass nil so DB stores NULL (allows unique index on non-null values)
-	var emailArg interface{}
-	if email := strings.ToLower(strings.TrimSpace(req.Email)); email != "" {
-		emailArg = email
-	}
+	emailArg := normalizeIdentifier(req.Email)
 
 	u := &UserInfo{}
 	err = r.db.QueryRow(ctx, `
@@ -190,14 +244,12 @@ func (r *Repository) Register(ctx context.Context, req RegisterRequest) (*UserIn
 	}
 
 	// Store signup goals in user_goals.priority_areas (non-fatal)
-	if len(req.Goals) > 0 {
-		if _, err := r.db.Exec(ctx, `
-			INSERT INTO user_goals (user_id, priority_areas)
-			VALUES ($1, $2)
-			ON CONFLICT (user_id) DO UPDATE SET priority_areas = EXCLUDED.priority_areas
-		`, u.ID, req.Goals); err != nil {
-			fmt.Printf("warn: could not save signup goals for %s: %v\n", u.Username, err)
-		}
+	if _, err := r.db.Exec(ctx, `
+		INSERT INTO user_goals (user_id, priority_areas)
+		VALUES ($1, $2)
+		ON CONFLICT (user_id) DO UPDATE SET priority_areas = EXCLUDED.priority_areas
+	`, u.ID, req.Goals); err != nil {
+		fmt.Printf("warn: could not save signup goals for %s: %v\n", u.Username, err)
 	}
 
 	return u, nil
@@ -206,7 +258,8 @@ func (r *Repository) Register(ctx context.Context, req RegisterRequest) (*UserIn
 // Login validates username + PIN and returns the user.
 // Rate-limited: 5 wrong PINs → 15-min lockout.
 func (r *Repository) Login(ctx context.Context, username, pin string) (*UserInfo, error) {
-	att := getLoginAttempt(username)
+	normalized := normalizeIdentifier(username)
+	att := getLoginAttempt(normalized)
 	if att.isLocked() {
 		return nil, ErrTooManyAttempts
 	}
@@ -216,7 +269,7 @@ func (r *Repository) Login(ctx context.Context, username, pin string) (*UserInfo
 	err := r.db.QueryRow(ctx, `
 		SELECT id, name, username, onboarded, COALESCE(password_hash, '')
 		FROM users WHERE username = $1
-	`, strings.ToLower(strings.TrimSpace(username))).Scan(
+	`, normalized).Scan(
 		&u.ID, &u.Name, &u.Username, &u.Onboarded, &pinHash,
 	)
 	if err != nil || pinHash == "" {
@@ -234,15 +287,14 @@ func (r *Repository) Login(ctx context.Context, username, pin string) (*UserInfo
 
 // RequestOTP generates a 6-digit OTP for PIN reset.
 // Returns the plain OTP so dev mode can expose it.
-// Silently succeeds if the username is not found (don't reveal user existence).
-func (r *Repository) RequestOTP(ctx context.Context, username string) (string, error) {
-	var userID uuid.UUID
-	err := r.db.QueryRow(ctx,
-		`SELECT id FROM users WHERE username = $1`,
-		strings.ToLower(strings.TrimSpace(username)),
-	).Scan(&userID)
+// Silently succeeds if the account is not found (don't reveal user existence).
+func (r *Repository) RequestOTP(ctx context.Context, identifier string) (string, error) {
+	userID, _, err := r.getUserByIdentifier(ctx, identifier)
 	if err != nil {
-		return "", nil // user not found — silent
+		if errors.Is(err, ErrUserNotFound) {
+			return "", nil // user not found — silent
+		}
+		return "", err
 	}
 
 	otp, err := generateOTP()
@@ -250,7 +302,7 @@ func (r *Repository) RequestOTP(ctx context.Context, username string) (string, e
 		return "", fmt.Errorf("generate otp: %w", err)
 	}
 
-	otpCache.Store(strings.ToLower(username), &otpEntry{
+	otpCache.Store(userID.String(), &otpEntry{
 		hashedOTP: hashOTP(otp),
 		expiresAt: time.Now().Add(otpExpiry),
 	})
@@ -263,17 +315,31 @@ func (r *Repository) RequestOTP(ctx context.Context, username string) (string, e
 
 // VerifyOTP checks that the OTP is valid without consuming it.
 // Used by the optional verify-otp endpoint before submitting reset-pin.
-func (r *Repository) VerifyOTP(username, otp string) error {
-	return checkOTP(username, otp)
+func (r *Repository) VerifyOTP(ctx context.Context, identifier, otp string) error {
+	userID, _, err := r.getUserByIdentifier(ctx, identifier)
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			return ErrInvalidOTP
+		}
+		return err
+	}
+	return checkOTP(userID, otp)
 }
 
 // ResetPIN verifies the OTP and atomically sets a new bcrypt-hashed PIN.
 // Deletes the OTP from cache after success to prevent reuse.
-func (r *Repository) ResetPIN(ctx context.Context, username, otp, newPIN string) error {
+func (r *Repository) ResetPIN(ctx context.Context, identifier, otp, newPIN string) error {
 	if !pinRegex.MatchString(newPIN) {
 		return ErrInvalidPIN
 	}
-	if err := checkOTP(username, otp); err != nil {
+	userID, _, err := r.getUserByIdentifier(ctx, identifier)
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			return ErrInvalidOTP
+		}
+		return err
+	}
+	if err := checkOTP(userID, otp); err != nil {
 		return err
 	}
 
@@ -283,13 +349,43 @@ func (r *Repository) ResetPIN(ctx context.Context, username, otp, newPIN string)
 	}
 
 	_, err = r.db.Exec(ctx,
-		`UPDATE users SET password_hash = $1 WHERE username = $2`,
-		string(pinHash), strings.ToLower(username),
+		`UPDATE users SET password_hash = $1 WHERE id = $2`,
+		string(pinHash), userID,
 	)
 	if err != nil {
 		return fmt.Errorf("update pin: %w", err)
 	}
 
-	otpCache.Delete(strings.ToLower(username)) // consume OTP
+	otpCache.Delete(userID.String()) // consume OTP
 	return nil
+}
+
+// IssueRefreshToken creates a new refresh token for "remember me".
+func (r *Repository) IssueRefreshToken(userID uuid.UUID, name string) (string, time.Time, error) {
+	token, err := generateRefreshToken()
+	if err != nil {
+		return "", time.Time{}, fmt.Errorf("generate refresh token: %w", err)
+	}
+	expiry := time.Now().Add(refreshTokenTTL)
+	refreshTokenCache.Store(hashToken(token), &refreshEntry{
+		userID:    userID,
+		name:      name,
+		expiresAt: expiry,
+	})
+	return token, expiry, nil
+}
+
+// ValidateRefreshToken validates a refresh token and returns user identity.
+func (r *Repository) ValidateRefreshToken(token string) (uuid.UUID, string, error) {
+	key := hashToken(strings.TrimSpace(token))
+	v, ok := refreshTokenCache.Load(key)
+	if !ok {
+		return uuid.Nil, "", ErrInvalidRefresh
+	}
+	entry := v.(*refreshEntry)
+	if time.Now().After(entry.expiresAt) {
+		refreshTokenCache.Delete(key)
+		return uuid.Nil, "", ErrInvalidRefresh
+	}
+	return entry.userID, entry.name, nil
 }

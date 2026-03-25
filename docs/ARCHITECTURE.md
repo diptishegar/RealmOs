@@ -137,7 +137,7 @@ RealmOs/
 
 - Base URL: `http://<EC2_IP>:8080/api/v1`
 - All responses: `{ "success": bool, "data": {}, "error": "" }`
-- Auth: JWT Bearer token (Phase 2)
+- Auth: JWT Bearer token
 - For Phase 1: user_id sent as header `X-User-ID`
 
 ---

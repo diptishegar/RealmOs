@@ -39,7 +39,7 @@ func getUserID(c *gin.Context) (uuid.UUID, bool) {
 func (h *Handler) UpsertProfile(c *gin.Context) {
 	userID, ok := getUserID(c)
 	if !ok {
-		response.BadRequest(c, "valid X-User-ID required")
+		response.BadRequest(c, "valid auth required")
 		return
 	}
 
@@ -61,7 +61,7 @@ func (h *Handler) UpsertProfile(c *gin.Context) {
 func (h *Handler) GetProfile(c *gin.Context) {
 	userID, ok := getUserID(c)
 	if !ok {
-		response.BadRequest(c, "valid X-User-ID required")
+		response.BadRequest(c, "valid auth required")
 		return
 	}
 
@@ -77,7 +77,7 @@ func (h *Handler) GetProfile(c *gin.Context) {
 func (h *Handler) LogDay(c *gin.Context) {
 	userID, ok := getUserID(c)
 	if !ok {
-		response.BadRequest(c, "valid X-User-ID required")
+		response.BadRequest(c, "valid auth required")
 		return
 	}
 
@@ -99,7 +99,7 @@ func (h *Handler) LogDay(c *gin.Context) {
 func (h *Handler) DeleteDay(c *gin.Context) {
 	userID, ok := getUserID(c)
 	if !ok {
-		response.BadRequest(c, "valid X-User-ID required")
+		response.BadRequest(c, "valid auth required")
 		return
 	}
 
@@ -120,7 +120,7 @@ func (h *Handler) DeleteDay(c *gin.Context) {
 func (h *Handler) GetLogs(c *gin.Context) {
 	userID, ok := getUserID(c)
 	if !ok {
-		response.BadRequest(c, "valid X-User-ID required")
+		response.BadRequest(c, "valid auth required")
 		return
 	}
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/realmos/backend/pkg/jwtutil"
@@ -29,10 +30,11 @@ func (h *Handler) RegisterPublicRoutes(rg *gin.RouterGroup) {
 	auth.POST("/forgot-pin", h.ForgotPIN)
 	auth.POST("/verify-otp", h.VerifyOTP)
 	auth.POST("/reset-pin", h.ResetPIN)
+	auth.POST("/refresh", h.RefreshToken)
 }
 
 // Register — POST /auth/register
-// Creates a new account. PIN must be 4–6 digits. Email and Goals are optional.
+// Creates a new account. PIN must be 4–6 digits. Email and Goals are required.
 func (h *Handler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -43,6 +45,15 @@ func (h *Handler) Register(c *gin.Context) {
 		response.BadRequest(c, "PIN must be 4–6 digits")
 		return
 	}
+	if req.Pin != req.ConfirmPin {
+		response.BadRequest(c, "PIN and confirm PIN must match")
+		return
+	}
+	if err := validateGoals(req.Goals); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	req.Goals = normalizeGoals(req.Goals)
 
 	user, err := h.repo.Register(c.Request.Context(), req)
 	if err != nil {
@@ -109,11 +120,22 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, AuthResponse{
+	resp := AuthResponse{
 		Token:       token,
 		TokenExpiry: expiry.Unix(),
 		User:        *user,
-	})
+	}
+	if req.RememberMe {
+		refreshToken, refreshExpiry, err := h.repo.IssueRefreshToken(user.ID, user.Name)
+		if err != nil {
+			response.InternalError(c, "failed to create refresh token")
+			return
+		}
+		resp.RefreshToken = refreshToken
+		resp.RefreshTokenExpiry = refreshExpiry.Unix()
+	}
+
+	response.OK(c, resp)
 }
 
 // ForgotPIN — POST /auth/forgot-pin
@@ -126,18 +148,24 @@ func (h *Handler) ForgotPIN(c *gin.Context) {
 		return
 	}
 
-	otp, err := h.repo.RequestOTP(c.Request.Context(), req.Username)
+	identifier, ok := selectIdentifier(req.Username, req.Email)
+	if !ok {
+		response.BadRequest(c, "username or email is required")
+		return
+	}
+
+	otp, err := h.repo.RequestOTP(c.Request.Context(), identifier)
 	if err != nil {
 		response.InternalError(c, "failed to process request")
 		return
 	}
 
 	if h.isDev && otp != "" {
-		log.Printf("[DEV] OTP for %s: %s", req.Username, otp)
+		log.Printf("[DEV] OTP for %s: %s", identifier, otp)
 	}
 
 	resp := ForgotPINResponse{
-		Message: "If that username is registered, an OTP has been sent.",
+		Message: "If that account is registered, an OTP has been sent.",
 	}
 	if h.isDev && otp != "" {
 		resp.OTP = otp
@@ -155,7 +183,13 @@ func (h *Handler) VerifyOTP(c *gin.Context) {
 		return
 	}
 
-	if err := h.repo.VerifyOTP(req.Username, req.OTP); err != nil {
+	identifier, ok := selectIdentifier(req.Username, req.Email)
+	if !ok {
+		response.BadRequest(c, "username or email is required")
+		return
+	}
+
+	if err := h.repo.VerifyOTP(c.Request.Context(), identifier, req.OTP); err != nil {
 		if errors.Is(err, ErrOTPMaxAttempts) {
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"success": false,
@@ -183,7 +217,13 @@ func (h *Handler) ResetPIN(c *gin.Context) {
 		return
 	}
 
-	if err := h.repo.ResetPIN(c.Request.Context(), req.Username, req.OTP, req.NewPIN); err != nil {
+	identifier, ok := selectIdentifier(req.Username, req.Email)
+	if !ok {
+		response.BadRequest(c, "username or email is required")
+		return
+	}
+
+	if err := h.repo.ResetPIN(c.Request.Context(), identifier, req.OTP, req.NewPIN); err != nil {
 		if errors.Is(err, ErrOTPMaxAttempts) {
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"success": false,
@@ -204,4 +244,41 @@ func (h *Handler) ResetPIN(c *gin.Context) {
 	}
 
 	response.OK(c, gin.H{"message": "PIN reset successfully. Please log in."})
+}
+
+// RefreshToken — POST /auth/refresh
+// Exchanges a refresh token for a new access token.
+func (h *Handler) RefreshToken(c *gin.Context) {
+	var req RefreshTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	userID, name, err := h.repo.ValidateRefreshToken(req.RefreshToken)
+	if err != nil {
+		response.BadRequest(c, "invalid or expired refresh token")
+		return
+	}
+
+	token, expiry, err := jwtutil.Generate(userID, name, h.jwtSecret)
+	if err != nil {
+		response.InternalError(c, "failed to generate token")
+		return
+	}
+
+	response.OK(c, RefreshTokenResponse{
+		Token:       token,
+		TokenExpiry: expiry.Unix(),
+	})
+}
+
+func selectIdentifier(username, email string) (string, bool) {
+	if value := strings.TrimSpace(username); value != "" {
+		return value, true
+	}
+	if value := strings.TrimSpace(email); value != "" {
+		return value, true
+	}
+	return "", false
 }

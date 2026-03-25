@@ -17,34 +17,57 @@ http://<EC2_IP>:8080/api/v1
 ## Headers
 ```
 Content-Type: application/json
-X-User-ID: <user_uuid>          ← sent on all authenticated requests
 Authorization: Bearer <jwt>     ← JWT from login/register response
+X-User-ID: <user_uuid>          ← optional for local/dev testing
 ```
 
 ---
 
 ## Authentication & User Management
 
+### Auth Module Overview
+- PIN-based login with bcrypt hashing (no plaintext PINs)
+- JWT access tokens for API auth (90-day TTL)
+- Optional remember-me via refresh tokens stored in memory (Redis in production)
+- OTP-based PIN reset stored in memory with expiry + attempt limits
+
+### Design Rationale (WHY)
+- PIN + bcrypt keeps login simple while resisting offline brute force.
+- JWT keeps requests stateless and fast for a mobile app.
+- In-memory OTP/refresh storage keeps the stack light; Redis is the drop-in scale upgrade.
+
+### Remember Me (HOW)
+- When `remember_me=true`, the server issues a refresh token stored as a SHA-256 hash.
+- The client calls `/auth/refresh` with that token to mint a new JWT without re-entering the PIN.
+
+### Backend Layers (Clean Architecture)
+- Controller: `auth/handler.go` (HTTP + validation)
+- Service/Repo: `auth/repository.go` (auth logic + DB access)
+- Models: `auth/model.go` (request/response DTOs)
+
 ### Auth Flow Overview
 
 ```
 Register:  POST /auth/register  →  JWT + user info
 Login:     POST /auth/login     →  JWT + user info
+Remember:  (optional) remember_me=true → refresh token returned
 Forgot PIN:
   1. POST /auth/forgot-pin      →  OTP generated (dev: returned in body)
   2. POST /auth/verify-otp      →  check OTP validity (optional)
   3. POST /auth/reset-pin       →  OTP + new PIN → success
+Refresh:   POST /auth/refresh   →  new JWT from refresh token
 ```
 
 ### Endpoints
 
-| Method | Path                 | Description                            |
-|--------|----------------------|----------------------------------------|
-| POST   | /auth/register       | Create account (username + PIN + goals) |
-| POST   | /auth/login          | Sign in (username + PIN)               |
-| POST   | /auth/forgot-pin     | Request OTP for PIN reset              |
+| Method | Path                 | Description                              |
+|--------|----------------------|------------------------------------------|
+| POST   | /auth/register       | Create account (username + PIN + goals)  |
+| POST   | /auth/login          | Sign in (username + PIN)                 |
+| POST   | /auth/forgot-pin     | Request OTP for PIN reset                |
 | POST   | /auth/verify-otp     | Verify OTP is valid (optional pre-check) |
-| POST   | /auth/reset-pin      | Reset PIN using OTP                    |
+| POST   | /auth/reset-pin      | Reset PIN using OTP                      |
+| POST   | /auth/refresh        | Exchange refresh token for new JWT       |
 
 ### POST /auth/register
 ```json
@@ -53,8 +76,9 @@ Forgot PIN:
   "username": "dipti_queen",
   "name": "Dipti",
   "pin": "1234",
-  "email": "dipti@example.com",   // optional — needed for PIN recovery
-  "goals": ["health", "periods", "skin"]  // optional multi-select
+  "confirm_pin": "1234",
+  "email": "dipti@example.com",
+  "goals": ["health", "periods", "skin"]
 }
 
 // Response 201
@@ -76,9 +100,10 @@ Forgot PIN:
 ### POST /auth/login
 ```json
 // Request
-{ "username": "dipti_queen", "pin": "1234" }
+{ "username": "dipti_queen", "pin": "1234", "remember_me": true }
 
 // Response 200 — same shape as register
+// If remember_me=true, includes refresh_token + refresh_token_expiry
 // Response 401 — { "success": false, "error": "incorrect username or PIN" }
 // Response 429 — { "success": false, "error": "too many failed attempts..." }
 ```
@@ -87,9 +112,11 @@ Forgot PIN:
 ```json
 // Request
 { "username": "dipti_queen" }
+// or
+{ "email": "dipti@example.com" }
 
 // Response 200
-{ "message": "If that username is registered, an OTP has been sent.",
+{ "message": "If that account is registered, an OTP has been sent.",
   "otp": "123456"  // only in dev mode (ENV != production)
 }
 ```
@@ -98,6 +125,8 @@ Forgot PIN:
 ```json
 // Request
 { "username": "dipti_queen", "otp": "123456" }
+// or
+{ "email": "dipti@example.com", "otp": "123456" }
 
 // Response 200
 { "verified": true, "message": "OTP verified" }
@@ -109,9 +138,20 @@ Forgot PIN:
 ```json
 // Request
 { "username": "dipti_queen", "otp": "123456", "new_pin": "9999" }
+// or
+{ "email": "dipti@example.com", "otp": "123456", "new_pin": "9999" }
 
 // Response 200
 { "message": "PIN reset successfully. Please log in." }
+```
+
+### POST /auth/refresh
+```json
+// Request
+{ "refresh_token": "refresh_token_here" }
+
+// Response 200
+{ "token": "eyJ...", "token_expiry": 1738000000 }
 ```
 
 ### Security notes
@@ -120,6 +160,28 @@ Forgot PIN:
 - OTP is 6 digits, expires in 10 minutes, max 3 verify attempts
 - OTP stored as SHA-256 hash in memory — never stored plaintext
 - JWT uses HS256, 90-day TTL (personal app — convenience over strict rotation)
+- Refresh tokens are random 256-bit values stored as SHA-256 hashes in memory
+
+### Data Models (Auth)
+- users: id, username, email, password_hash, onboarded, created_at, updated_at
+- user_goals: user_id, priority_areas (signup goals)
+- in-memory caches: login attempts, OTPs, refresh tokens
+
+### Flow Diagrams (text)
+```
+[Register] -> validate fields + goals -> bcrypt PIN -> users + user_goals -> JWT
+[Login] -> rate limit -> bcrypt compare -> JWT -> (remember_me) refresh token
+[Forgot PIN] -> lookup by username/email -> OTP -> hash -> cache -> response
+[Verify OTP] -> lookup user -> check cache -> ok / error
+[Reset PIN] -> verify OTP -> bcrypt new PIN -> update user -> invalidate OTP
+[Refresh] -> validate refresh token -> mint new JWT
+```
+
+### Edge Cases
+- Wrong PIN → 401 (increments lockout counter)
+- Expired/invalid OTP → 400
+- Invalid username/email → generic OTP response (no account leakage)
+- Multiple OTP requests → latest OTP overwrites previous (expiry still enforced)
 
 ---
 
@@ -307,7 +369,7 @@ Forgot PIN:
 
 ## Phase 2 (Future)
 
-- JWT authentication
+- Refresh token persistence (Redis)
 - Insights endpoints (correlations, trends)
 - Lifestyle Consistency Score (Sexiness Score)
 - Hormone tracking

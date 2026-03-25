@@ -27,6 +27,27 @@ CREATE TABLE users (
 );
 ```
 
+### Migration 004–006 – Authentication Fields
+Adds username/email and secure PIN storage.
+
+```sql
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS pin_hash               TEXT,
+  ADD COLUMN IF NOT EXISTS email                  TEXT,
+  ADD COLUMN IF NOT EXISTS password_hash          TEXT,
+  ADD COLUMN IF NOT EXISTS reset_token_hash       TEXT,
+  ADD COLUMN IF NOT EXISTS reset_token_expires_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS username               TEXT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email
+  ON users(email) WHERE email IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_username_key
+  ON users(username) WHERE username IS NOT NULL;
+```
+Notes:
+- `password_hash` stores the bcrypt hash of the user's PIN.
+
 ### user_goals
 Stores personalized targets set during onboarding.
 
