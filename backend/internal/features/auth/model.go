@@ -59,7 +59,7 @@ type RegisterRequest struct {
 	Name       string   `json:"name"        binding:"required,min=2,max=50"`
 	Pin        string   `json:"pin"         binding:"required"`
 	ConfirmPin string   `json:"confirm_pin" binding:"required"`
-	Email      string   `json:"email"       binding:"required,email"`
+	Email      string   `json:"email"       binding:"omitempty,email"`
 	Goals      []string `json:"goals"       binding:"required"`
 }
 

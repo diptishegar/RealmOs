@@ -14,13 +14,14 @@ export type AuthResult = {
 };
 
 export const authService = {
-  // Username + PIN signup with optional email and goals.
+  // Username + PIN signup with email (optional) and goals.
   async register(data: {
     username: string;
     name: string;
     pin: string;
+    confirm_pin: string;
     email?: string;
-    goals?: string[];
+    goals: string[];
   }): Promise<AuthResult> {
     const res = await api.post('/auth/register', data);
     return res.data.data;

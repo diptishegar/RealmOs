@@ -38,8 +38,11 @@ export const colors = {
 } as const;
 
 export const fonts = {
+  // Sans-serif — used in auth screens for cleaner look
+  sans:        'System',        // system default (San Francisco / Roboto)
+
   // Monospace — default for most UI
-  mono:        'SpaceMono',   // load via expo-font
+  mono:        'SpaceMono',     // load via expo-font
 
   // Cursive — for quotes and highlights
   cursive:     'DancingScript', // load via expo-font

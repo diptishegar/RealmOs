@@ -31,6 +31,7 @@ type FieldErrors = {
   pin?: string;
   confirmPin?: string;
   email?: string;
+  goals?: string;
 };
 
 export function SignupScreen({ onBack, onGoogleSignUp }: Props) {
@@ -49,6 +50,7 @@ export function SignupScreen({ onBack, onGoogleSignUp }: Props) {
     setGoals((prev) =>
       prev.includes(key) ? prev.filter((g) => g !== key) : [...prev, key]
     );
+    clearFieldError('goals');
   }
 
   function validate(): FieldErrors {
@@ -83,6 +85,10 @@ export function SignupScreen({ onBack, onGoogleSignUp }: Props) {
       errs.email = 'Please enter a valid email address.';
     }
 
+    if (goals.length === 0) {
+      errs.goals = 'Pick at least one goal to track.';
+    }
+
     return errs;
   }
 
@@ -98,6 +104,7 @@ export function SignupScreen({ onBack, onGoogleSignUp }: Props) {
         username: username.trim().toLowerCase(),
         name: name.trim(),
         pin,
+        confirm_pin: confirmPin,
         email: email.trim() || undefined,
         goals,
       });
@@ -197,6 +204,9 @@ export function SignupScreen({ onBack, onGoogleSignUp }: Props) {
               </TouchableOpacity>
             ))}
           </View>
+          {fieldErrors.goals ? (
+            <Text style={styles.goalsError}>{fieldErrors.goals}</Text>
+          ) : null}
 
           <Button
             label="Create Account"
@@ -295,6 +305,13 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: colors.white,
     fontWeight: '600',
+  },
+  goalsError: {
+    fontFamily: fonts.sans,
+    fontSize: fontSizes.xs,
+    color: colors.error,
+    marginTop: -spacing.base,
+    marginBottom: spacing.base,
   },
   submitError: {
     fontFamily: fonts.sans,

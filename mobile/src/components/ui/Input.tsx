@@ -13,6 +13,7 @@ type InputProps = {
   keyboardType?: 'default' | 'numeric' | 'email-address' | 'decimal-pad';
   multiline?: boolean;
   numberOfLines?: number;
+  maxLength?: number;
   style?: ViewStyle;
   error?: string;
 };
@@ -26,6 +27,7 @@ export function Input({
   keyboardType = 'default',
   multiline = false,
   numberOfLines = 1,
+  maxLength,
   style,
   error,
 }: InputProps) {
@@ -43,6 +45,7 @@ export function Input({
         keyboardType={keyboardType}
         multiline={multiline}
         numberOfLines={numberOfLines}
+        maxLength={maxLength}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         style={[
