@@ -360,6 +360,52 @@ func (r *Repository) ResetPIN(ctx context.Context, identifier, otp, newPIN strin
 	return nil
 }
 
+// GoogleAuth finds or creates a user based on a Google OAuth access token.
+// - If a user with the same google_id already exists, returns that user.
+// - If a user with the same email exists, links the google_id to that account.
+// - Otherwise, creates a brand-new account from the Google profile.
+func (r *Repository) GoogleAuth(ctx context.Context, googleID, email, name string) (*UserInfo, error) {
+	u := &UserInfo{}
+
+	// 1. Find by google_id (returning user)
+	err := r.db.QueryRow(ctx, `
+		SELECT id, name, COALESCE(username, ''), onboarded
+		FROM users WHERE google_id = $1
+	`, googleID).Scan(&u.ID, &u.Name, &u.Username, &u.Onboarded)
+	if err == nil {
+		return u, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("google auth lookup: %w", err)
+	}
+
+	// 2. Link to existing account by email
+	if email != "" {
+		err = r.db.QueryRow(ctx, `
+			UPDATE users SET google_id = $1
+			WHERE email = $2
+			RETURNING id, name, COALESCE(username, ''), onboarded
+		`, googleID, email).Scan(&u.ID, &u.Name, &u.Username, &u.Onboarded)
+		if err == nil {
+			return u, nil
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("google auth email link: %w", err)
+		}
+	}
+
+	// 3. Create new account
+	err = r.db.QueryRow(ctx, `
+		INSERT INTO users (name, email, google_id)
+		VALUES ($1, NULLIF($2, ''), $3)
+		RETURNING id, name, COALESCE(username, ''), onboarded
+	`, name, email, googleID).Scan(&u.ID, &u.Name, &u.Username, &u.Onboarded)
+	if err != nil {
+		return nil, fmt.Errorf("google auth create user: %w", err)
+	}
+	return u, nil
+}
+
 // IssueRefreshToken creates a new refresh token for "remember me".
 func (r *Repository) IssueRefreshToken(userID uuid.UUID, name string) (string, time.Time, error) {
 	token, err := generateRefreshToken()

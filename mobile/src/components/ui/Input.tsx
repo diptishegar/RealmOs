@@ -123,6 +123,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     minHeight: 50,
     lineHeight: 22,
+    borderRadius: borderRadius.md,
   },
   inputMultiline: {
     minHeight: 100,

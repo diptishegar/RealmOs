@@ -135,3 +135,9 @@ type RefreshTokenResponse struct {
 	Token       string `json:"token"`
 	TokenExpiry int64  `json:"token_expiry"`
 }
+
+// GoogleAuthRequest — POST /auth/google
+// Accepts a Google OAuth access token from the frontend.
+type GoogleAuthRequest struct {
+	AccessToken string `json:"access_token" binding:"required"`
+}

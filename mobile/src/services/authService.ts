@@ -49,4 +49,10 @@ export const authService = {
   async resetPIN(username: string, otp: string, newPin: string): Promise<void> {
     await api.post('/auth/reset-pin', { username, otp, new_pin: newPin });
   },
+
+  // Sign in or sign up with a Google OAuth access token.
+  async googleAuth(accessToken: string): Promise<AuthResult> {
+    const res = await api.post('/auth/google', { access_token: accessToken });
+    return res.data.data;
+  },
 };

@@ -1,28 +1,29 @@
 // Navigation — wires everything together.
 //
 // FLOW:
-//   No user       → Splash → Auth (Welcome → Login | Signup | ForgotPIN)
-//   User, not onboarded → Onboarding (health data setup)
-//   User, onboarded     → App (Drawer + Bottom Tabs)
+//   Every boot → SplashScreen (quotes, 3.2s)
+//   No user       → Auth (Welcome → Login | Signup | ForgotPIN)
+//   User, !onboarded → Onboarding (4-step health setup)
+//   User, onboarded  → App (Drawer → SwipeTabNavigator)
 //
-// REACT NATIVE LESSON:
-//   React Navigation uses a "navigator" tree. We nest them:
-//   Root Stack → decides Splash vs Auth vs Onboarding vs Main App
-//   Main App → Drawer (hamburger) wrapping Bottom Tabs
-//   Bottom Tabs → Home, Track, Today, Profile
-//
-//   The key principle: navigators are just React components.
-//   You nest them like you'd nest divs.
+// TAB NAVIGATION (Instagram-style):
+//   Swipe left/right between tabs OR tap tab icons at the bottom.
+//   Powered by react-native-tab-view + react-native-pager-view (native pager).
+//   Drawer swipe is disabled to prevent conflict with horizontal tab swipe —
+//   open the drawer via the hamburger icon instead.
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createDrawerNavigator } from '@react-navigation/drawer';
-import { Text, View, StyleSheet } from 'react-native';
+import { TabView, SceneMap } from 'react-native-tab-view';
+import {
+  Text, View, StyleSheet, TouchableOpacity, useWindowDimensions,
+} from 'react-native';
 
 import { useApp } from '@/store/AppContext';
-import { colors, fonts, fontSizes } from '@/theme';
+import { colors, fonts, fontSizes, spacing } from '@/theme';
 
 // Screens
 import { SplashScreen } from '@/features/onboarding/screens/SplashScreen';
@@ -36,29 +37,54 @@ import { LoginScreen } from '@/features/auth/screens/LoginScreen';
 import { SignupScreen } from '@/features/auth/screens/SignupScreen';
 import { ForgotPasswordScreen } from '@/features/auth/screens/ForgotPasswordScreen';
 
-// ─── Stack / Tab / Drawer navigators ─────────────────────────────────────────
+// ─── Stack / Drawer navigators ────────────────────────────────────────────────
 
 const RootStack = createNativeStackNavigator();
-const Tab = createBottomTabNavigator();
-const Drawer = createDrawerNavigator();
+const Drawer    = createDrawerNavigator();
+
+// ─── Tab config ───────────────────────────────────────────────────────────────
+//
+// SceneMap needs stable component references — define placeholder screens once
+// here at module level so they don't get recreated on every render.
+
+// Today tab: period calendar in display-only mode (view all months, no editing)
+const TodayScreen      = () => <PeriodTrackerScreen readOnly />;
+// Track tab: period calendar with full edit capability (current + past months)
+const PeriodEditScreen = () => <PeriodTrackerScreen />;
+
+const InsightsPlaceholder = PlaceholderScreen('Insights', 'Patterns and trends ✨');
+const MePlaceholder       = PlaceholderScreen('Profile',  'Your settings and goals ⚙️');
+
+const TAB_ROUTES = [
+  { key: 'home',     emoji: '🏠', label: 'Home'     },
+  { key: 'today',    emoji: '📅', label: 'Today'    },
+  { key: 'track',    emoji: '🩸', label: 'Track'    },
+  { key: 'insights', emoji: '✨', label: 'Insights' },
+  { key: 'me',       emoji: '👤', label: 'Me'       },
+];
+
+// SceneMap is created once outside component to avoid re-creation on render
+const renderScene = SceneMap({
+  home:     HomeScreen,
+  today:    TodayScreen,
+  track:    PeriodEditScreen,
+  insights: InsightsPlaceholder,
+  me:       MePlaceholder,
+});
 
 // ─── Auth Flow ────────────────────────────────────────────────────────────────
-//
-// REACT NATIVE LESSON:
-//   Auth screens use callback props instead of navigation props
-//   because they're closely coupled and don't need to be deep-linked.
-//   We manage the sub-state (which auth screen to show) locally here.
 
 type AuthView = 'welcome' | 'login' | 'signup' | 'forgot';
 
 function AuthFlowScreen() {
   const [view, setView] = useState<AuthView>('welcome');
+  const { signInWithGoogle } = useGoogleAuth();
 
   if (view === 'login') {
     return (
       <LoginScreen
         onBack={() => setView('welcome')}
-        onGoogleSignIn={() => {/* TODO: Google SSO */}}
+        onGoogleSignIn={signInWithGoogle}
         onForgotPIN={() => setView('forgot')}
       />
     );
@@ -68,7 +94,7 @@ function AuthFlowScreen() {
     return (
       <SignupScreen
         onBack={() => setView('welcome')}
-        onGoogleSignUp={() => {/* TODO: Google SSO */}}
+        onGoogleSignUp={signInWithGoogle}
       />
     );
   }
@@ -82,86 +108,108 @@ function AuthFlowScreen() {
     );
   }
 
-  // default: welcome
   return (
     <WelcomeScreen
-      onGoogleSignIn={() => {/* TODO: Google SSO */}}
+      onGoogleSignIn={signInWithGoogle}
       onPinSignIn={() => setView('login')}
       onCreateAccount={() => setView('signup')}
     />
   );
 }
 
-// ─── Bottom Tab Navigator ─────────────────────────────────────────────────────
+// ─── Swipe Tab Navigator (Instagram-style) ────────────────────────────────────
+//
+// TabView renders screens in a native horizontal pager.
+// Swipe left/right to switch tabs, or tap the bottom tab bar icons.
+// `lazy` keeps unvisited screens unmounted until first visited.
 
-function TabNavigator() {
+function SwipeTabNavigator() {
+  const { width } = useWindowDimensions();
+  const [index, setIndex] = useState(0);
+
   return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: tabBarStyle,
-        tabBarActiveTintColor: colors.accentBlue,
-        tabBarInactiveTintColor: colors.textMuted,
-        tabBarLabelStyle: tabBarLabelStyle,
-      }}
-    >
-      <Tab.Screen
-        name="Home"
-        component={HomeScreen}
-        options={{ tabBarIcon: ({ color }) => <TabIcon emoji="🏠" color={color} /> }}
-      />
-      <Tab.Screen
-        name="Track"
-        component={PlaceholderScreen('Track', 'log something today 📊')}
-        options={{ tabBarIcon: ({ color }) => <TabIcon emoji="➕" color={color} /> }}
-      />
-      <Tab.Screen
-        name="Today"
-        component={PlaceholderScreen('Today', "here's your day so far 📋")}
-        options={{ tabBarIcon: ({ color }) => <TabIcon emoji="📅" color={color} /> }}
-      />
-      <Tab.Screen
-        name="Profile"
-        component={PlaceholderScreen('Profile', 'your settings & goals ⚙️')}
-        options={{ tabBarIcon: ({ color }) => <TabIcon emoji="👤" color={color} /> }}
-      />
-    </Tab.Navigator>
+    <TabView
+      navigationState={{ index, routes: TAB_ROUTES }}
+      renderScene={renderScene}
+      onIndexChange={setIndex}
+      initialLayout={{ width }}
+      tabBarPosition="bottom"
+      renderTabBar={(props) => <BottomTabBar {...props} />}
+      lazy
+    />
+  );
+}
+
+// ─── Custom Bottom Tab Bar ────────────────────────────────────────────────────
+
+function BottomTabBar({ navigationState, jumpTo }: { navigationState: any; jumpTo: (key: string) => void }) {
+  return (
+    <View style={styles.tabBar}>
+      {TAB_ROUTES.map((route, i) => {
+        const isActive = i === navigationState.index;
+        return (
+          <TouchableOpacity
+            key={route.key}
+            style={styles.tabItem}
+            onPress={() => jumpTo(route.key)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.tabEmoji, { opacity: isActive ? 1 : 0.45 }]}>
+              {route.emoji}
+            </Text>
+            <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
+              {route.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
   );
 }
 
 // ─── Drawer Navigator (Hamburger Menu) ────────────────────────────────────────
+//
+// gestureEnabled: false — disables swipe-to-open drawer so it doesn't
+// conflict with the horizontal tab swipe. Open drawer via hamburger icon.
 
 function DrawerNavigator() {
   return (
     <Drawer.Navigator
       screenOptions={{
-        headerShown: false,
-        drawerStyle: drawerStyle,
-        drawerActiveTintColor: colors.accentBlue,
+        headerShown:   false,
+        swipeEnabled: false,           // prevents conflict with tab swipe
+        drawerStyle:       drawerStyle,
+        drawerActiveTintColor:   colors.accentBlue,
         drawerInactiveTintColor: colors.textMuted,
-        drawerLabelStyle: drawerLabelStyle,
+        drawerLabelStyle:        drawerLabelStyle,
       }}
     >
-      <Drawer.Screen name="MainTabs" component={TabNavigator} options={{ title: 'Home' }} />
-      <Drawer.Screen name="PeriodTracker" component={PeriodTrackerScreen} options={{ title: '🩸 Period Tracker' }} />
-      <Drawer.Screen name="Sleep" component={PlaceholderScreen('Sleep', 'beauty sleep report 😴')} options={{ title: '😴 Sleep' }} />
-      <Drawer.Screen name="Diet" component={PlaceholderScreen('Diet', 'what did we eat babe? 🥗')} options={{ title: '🥗 Diet' }} />
-      <Drawer.Screen name="Exercise" component={PlaceholderScreen('Exercise', 'slay those workouts 💪')} options={{ title: '💪 Exercise' }} />
-      <Drawer.Screen name="Water" component={PlaceholderScreen('Water', 'hydration check 💧')} options={{ title: '💧 Water / Protein / Carbs' }} />
-      <Drawer.Screen name="Steps" component={PlaceholderScreen('Steps', '6000 steps a day keeps the doctor away 🏃')} options={{ title: '🏃 Steps' }} />
-      <Drawer.Screen name="Acne" component={PlaceholderScreen('Acne', 'skin diary 🌸')} options={{ title: '🌸 Acne Tracker' }} />
-      <Drawer.Screen name="Bloat" component={PlaceholderScreen('Bloat', 'bloat log 🫧')} options={{ title: '🫧 Bloat Tracker' }} />
-      <Drawer.Screen name="Selfie" component={PlaceholderScreen('Selfie', 'daily glow log 📸')} options={{ title: '📸 Selfie Log' }} />
-      <Drawer.Screen name="Savings" component={PlaceholderScreen('Savings', 'saving like a boss 💰')} options={{ title: '💰 Savings' }} />
-      <Drawer.Screen name="Investments" component={PlaceholderScreen('Investments', 'building that bag 📈')} options={{ title: '📈 Investments' }} />
+      <Drawer.Screen name="MainTabs"    component={SwipeTabNavigator}                                                            options={{ title: 'Home' }} />
+      <Drawer.Screen name="Sleep"       component={PlaceholderScreen('Sleep',   'beauty sleep report 😴')}                       options={{ title: '😴 Sleep' }} />
+      <Drawer.Screen name="Diet"        component={PlaceholderScreen('Diet',    'what did we eat babe? 🥗')}                     options={{ title: '🥗 Diet' }} />
+      <Drawer.Screen name="Exercise"    component={PlaceholderScreen('Exercise','slay those workouts 💪')}                       options={{ title: '💪 Exercise' }} />
+      <Drawer.Screen name="Water"       component={PlaceholderScreen('Water',   'hydration check 💧')}                           options={{ title: '💧 Water / Protein / Carbs' }} />
+      <Drawer.Screen name="Steps"       component={PlaceholderScreen('Steps',   '6000 steps a day keeps the doctor away 🏃')}    options={{ title: '🏃 Steps' }} />
+      <Drawer.Screen name="Acne"        component={PlaceholderScreen('Acne',    'skin diary 🌸')}                                options={{ title: '🌸 Acne Tracker' }} />
+      <Drawer.Screen name="Bloat"       component={PlaceholderScreen('Bloat',   'bloat log 🫧')}                                 options={{ title: '🫧 Bloat Tracker' }} />
+      <Drawer.Screen name="Selfie"      component={PlaceholderScreen('Selfie',  'daily glow log 📸')}                            options={{ title: '📸 Selfie Log' }} />
+      <Drawer.Screen name="Savings"     component={PlaceholderScreen('Savings', 'saving like a boss 💰')}                        options={{ title: '💰 Savings' }} />
+      <Drawer.Screen name="Investments" component={PlaceholderScreen('Investments', 'building that bag 📈')}                     options={{ title: '📈 Investments' }} />
     </Drawer.Navigator>
   );
 }
 
-// ─── Root Navigator — decides which flow to show ──────────────────────────────
+// ─── Root Navigator ───────────────────────────────────────────────────────────
 
 export function RootNavigator() {
   const { state } = useApp();
+  const [splashDone, setSplashDone] = useState(false);
+
+  useEffect(() => { setSplashDone(false); }, []);
+
+  if (!splashDone) {
+    return <SplashScreen onDone={() => setSplashDone(true)} />;
+  }
 
   if (state.isLoading) {
     return <View style={{ flex: 1, backgroundColor: colors.background }} />;
@@ -171,16 +219,10 @@ export function RootNavigator() {
     <NavigationContainer>
       <RootStack.Navigator screenOptions={{ headerShown: false }}>
         {!state.user ? (
-          // Not logged in → Splash → Auth screens
-          <>
-            <RootStack.Screen name="Splash" component={SplashWrapper} />
-            <RootStack.Screen name="Auth" component={AuthFlowScreen} />
-          </>
+          <RootStack.Screen name="Auth" component={AuthFlowScreen} />
         ) : !state.user.onboarded ? (
-          // Logged in but not yet set up health profile
           <RootStack.Screen name="Onboarding" component={OnboardingWrapper} />
         ) : (
-          // Fully set up → Main App
           <RootStack.Screen name="App" component={DrawerNavigator} />
         )}
       </RootStack.Navigator>
@@ -190,25 +232,13 @@ export function RootNavigator() {
 
 // ─── Wrappers ─────────────────────────────────────────────────────────────────
 
-function SplashWrapper({ navigation }: any) {
-  return (
-    <SplashScreen
-      onDone={() => navigation.replace('Auth')}
-    />
-  );
-}
-
 function OnboardingWrapper({ navigation }: any) {
   const { state } = useApp();
   if (state.user?.onboarded) {
     navigation.replace('App');
     return null;
   }
-  return (
-    <OnboardingScreen
-      onComplete={() => navigation.replace('App')}
-    />
-  );
+  return <OnboardingScreen onComplete={() => navigation.replace('App')} />;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -225,30 +255,42 @@ function PlaceholderScreen(title: string, subtitle: string) {
   };
 }
 
-function TabIcon({ emoji, color }: { emoji: string; color: string }) {
-  return <Text style={{ fontSize: 20, opacity: color === colors.accentBlue ? 1 : 0.5 }}>{emoji}</Text>;
-}
-
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const tabBarStyle = {
-  backgroundColor: colors.surface,
-  borderTopColor: colors.borderLight,
-  borderTopWidth: 1,
-  height: 64,
-  paddingBottom: 10,
-  paddingTop: 6,
-  shadowColor: colors.royalDark,
-  shadowOffset: { width: 0, height: -2 },
-  shadowOpacity: 0.04,
-  shadowRadius: 8,
-  elevation: 4,
-};
-
-const tabBarLabelStyle = {
-  fontFamily: fonts.sans,
-  fontSize: fontSizes.xs,
-};
+const styles = StyleSheet.create({
+  tabBar: {
+    flexDirection:  'row',
+    backgroundColor: colors.surface,
+    borderTopColor:  colors.borderLight,
+    borderTopWidth:  1,
+    height:          68,
+    paddingBottom:   10,
+    paddingTop:       6,
+    shadowColor:     colors.royalDark,
+    shadowOffset:    { width: 0, height: -2 },
+    shadowOpacity:   0.04,
+    shadowRadius:    8,
+    elevation:       4,
+  },
+  tabItem: {
+    flex:           1,
+    alignItems:     'center',
+    justifyContent: 'center',
+    gap:             2,
+  },
+  tabEmoji: {
+    fontSize: 20,
+  },
+  tabLabel: {
+    fontFamily: fonts.sans,
+    fontSize:   fontSizes.xs,
+    color:      colors.textMuted,
+  },
+  tabLabelActive: {
+    color:      colors.accentBlue,
+    fontWeight: '600',
+  },
+});
 
 const drawerStyle = {
   backgroundColor: colors.background,
@@ -257,34 +299,34 @@ const drawerStyle = {
 
 const drawerLabelStyle = {
   fontFamily: fonts.sans,
-  fontSize: fontSizes.sm,
+  fontSize:   fontSizes.sm,
   letterSpacing: 0.2,
 };
 
 const placeholderStyles = StyleSheet.create({
   container: {
-    flex: 1,
+    flex:            1,
     backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
+    alignItems:      'center',
+    justifyContent:  'center',
+    padding:         32,
   },
   title: {
-    fontFamily: fonts.serif,
-    fontSize: fontSizes.xl,
-    color: colors.textPrimary,
+    fontFamily:   fonts.serif,
+    fontSize:     fontSizes.xl,
+    color:        colors.textPrimary,
     marginBottom: 8,
   },
   subtitle: {
-    fontFamily: fonts.cursive,
-    fontSize: fontSizes.base,
-    color: colors.textSecondary,
-    textAlign: 'center',
+    fontFamily:   fonts.cursive,
+    fontSize:     fontSizes.base,
+    color:        colors.textSecondary,
+    textAlign:    'center',
     marginBottom: 16,
   },
   coming: {
     fontFamily: fonts.sans,
-    fontSize: fontSizes.sm,
-    color: colors.textMuted,
+    fontSize:   fontSizes.sm,
+    color:      colors.textMuted,
   },
 });

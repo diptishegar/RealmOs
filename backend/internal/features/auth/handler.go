@@ -1,7 +1,10 @@
 package auth
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -31,6 +34,7 @@ func (h *Handler) RegisterPublicRoutes(rg *gin.RouterGroup) {
 	auth.POST("/verify-otp", h.VerifyOTP)
 	auth.POST("/reset-pin", h.ResetPIN)
 	auth.POST("/refresh", h.RefreshToken)
+	auth.POST("/google", h.GoogleAuth)
 }
 
 // Register — POST /auth/register
@@ -271,6 +275,77 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		Token:       token,
 		TokenExpiry: expiry.Unix(),
 	})
+}
+
+// GoogleAuth — POST /auth/google
+// Verifies a Google OAuth access token, then finds or creates the user.
+func (h *Handler) GoogleAuth(c *gin.Context) {
+	var req GoogleAuthRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	googleID, email, name, err := verifyGoogleAccessToken(c.Request.Context(), req.AccessToken)
+	if err != nil {
+		log.Printf("google token verify failed: %v", err)
+		response.BadRequest(c, "invalid Google access token")
+		return
+	}
+
+	user, err := h.repo.GoogleAuth(c.Request.Context(), googleID, email, name)
+	if err != nil {
+		response.InternalError(c, "failed to sign in with Google")
+		return
+	}
+
+	token, expiry, err := jwtutil.Generate(user.ID, user.Name, h.jwtSecret)
+	if err != nil {
+		response.InternalError(c, "failed to generate token")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": AuthResponse{
+			Token:       token,
+			TokenExpiry: expiry.Unix(),
+			User:        *user,
+		},
+	})
+}
+
+// verifyGoogleAccessToken calls Google's userinfo API to validate the token
+// and returns the user's Google ID, email, and display name.
+func verifyGoogleAccessToken(ctx context.Context, accessToken string) (googleID, email, name string, err error) {
+	url := "https://www.googleapis.com/oauth2/v1/userinfo?access_token=" + accessToken
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", "", "", fmt.Errorf("build request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", "", "", fmt.Errorf("call google userinfo: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", "", "", fmt.Errorf("google returned status %d", resp.StatusCode)
+	}
+
+	var payload struct {
+		ID    string `json:"id"`
+		Email string `json:"email"`
+		Name  string `json:"name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return "", "", "", fmt.Errorf("decode google response: %w", err)
+	}
+	if payload.ID == "" {
+		return "", "", "", fmt.Errorf("google response missing user id")
+	}
+	return payload.ID, payload.Email, payload.Name, nil
 }
 
 func selectIdentifier(username, email string) (string, bool) {

@@ -80,11 +80,20 @@ func (r *Repository) MarkOnboarded(ctx context.Context, id uuid.UUID) error {
 
 func (r *Repository) UpsertGoals(ctx context.Context, userID uuid.UUID, req UpdateGoalsRequest) (*UserGoals, error) {
 	g := &UserGoals{}
+	// COALESCE in VALUES: if incoming value is NULL, fall back to the table default
+	// so NOT NULL columns are never violated on first INSERT.
 	err := r.db.QueryRow(ctx, `
 		INSERT INTO user_goals
 			(user_id, daily_water_ml, daily_protein_g, daily_steps, sleep_hours,
 			 workout_days_week, monthly_savings_inr, priority_areas)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		VALUES ($1,
+			COALESCE($2, 3000),
+			COALESCE($3, 50),
+			COALESCE($4, 6000),
+			COALESCE($5, 8.0),
+			COALESCE($6, 4),
+			COALESCE($7, 0.0),
+			COALESCE($8, ARRAY[]::text[]))
 		ON CONFLICT (user_id) DO UPDATE SET
 			daily_water_ml      = COALESCE($2, user_goals.daily_water_ml),
 			daily_protein_g     = COALESCE($3, user_goals.daily_protein_g),

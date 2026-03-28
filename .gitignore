@@ -1,6 +1,7 @@
 *.cmd
 backend/.env.example
-backend/.env 
+backend/.env
+mobile/.env
 .vscode/
 .claude/
 mobile/node_modules/
